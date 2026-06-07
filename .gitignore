@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+data/index.json
+*.log
+.DS_Store
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Personal Claude Code tooling, not part of the product
+.claude/
