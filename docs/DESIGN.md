@@ -43,3 +43,5 @@ Separating the two metrics is deliberate: it tells you *where* a failure is (ret
 | v2 | Agentic RAG: query rewriting, multi-hop retrieval, self-correction loop (LangGraph.js) | eval shows the linear baseline failing on hard, multi-fact questions |
 
 The roadmap is signal-driven, not calendar-driven. Each step is justified by a number the previous step produced.
+
+Granular, check-off-able v1 tasks live in [TODO.md](../TODO.md) — kept separate so this design doc stays stable.
