@@ -53,9 +53,12 @@ async function main(): Promise<void> {
 
   const chunks = loadDummyDoc();
   const vectors = await embedder.embed(chunks.map((c) => c.text));
+  // Zip chunks with their vectors ONCE, here at the boundary — so the store's
+  // upsert can't be handed misaligned arrays.
+  const entries = chunks.map((chunk, i) => ({ chunk, vector: vectors[i] }));
 
   await store.reset();
-  await store.upsert(chunks, vectors);
+  await store.upsert(entries);
 
   console.log(`Ingested ${chunks.length} chunks using embedder "${embedder.name}".`);
 }

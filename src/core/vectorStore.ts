@@ -5,8 +5,15 @@ import type { Chunk, RetrievedChunk } from "./types";
 // SEAM 2: VectorStore. Holds vectors, returns the nearest ones for a query.
 
 export interface VectorStore {
-  upsert(chunks: Chunk[], vectors: number[][]): Promise<void>;
+  upsert(entries: StoredVector[]): Promise<void>;
   query(vector: number[], topK: number): Promise<RetrievedChunk[]>;
+}
+
+// A chunk paired with its vector. Passing these as one unit (instead of two
+// parallel arrays) makes it impossible to misalign a chunk with the wrong vector.
+export interface StoredVector {
+  chunk: Chunk;
+  vector: number[];
 }
 
 function cosine(a: number[], b: number[]): number {
@@ -19,11 +26,6 @@ function cosine(a: number[], b: number[]): number {
     nb += b[i] * b[i];
   }
   return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1);
-}
-
-interface StoredVector {
-  chunk: Chunk;
-  vector: number[];
 }
 
 // File-backed store: zero external deps, and it survives across the `ingest` and
@@ -57,9 +59,9 @@ export class InMemoryVectorStore implements VectorStore {
     await this.persist();
   }
 
-  async upsert(chunks: Chunk[], vectors: number[][]): Promise<void> {
+  async upsert(entries: StoredVector[]): Promise<void> {
     await this.load();
-    chunks.forEach((chunk, i) => this.records.push({ chunk, vector: vectors[i] }));
+    this.records.push(...entries);
     await this.persist();
   }
 
