@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start",
     "ingest": "tsx scripts/ingest.ts",
+    "ingest:ollama": "EMBEDDER=ollama tsx scripts/ingest.ts",
     "eval": "tsx eval/run-eval.ts",
+    "eval:ollama": "EMBEDDER=ollama tsx eval/run-eval.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

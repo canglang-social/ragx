@@ -12,7 +12,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 - [ ] A4. Add a few real annual-report PDFs to `data/pdfs/`.
 
 ## B. Embedding & retrieval
-- [ ] B5. Swap `MockEmbedder` → `OllamaEmbedder` (`ollama pull nomic-embed-text`); re-run `pnpm eval` to prove `answer=0.67` climbs. **← today**
+- [x] B5. Swap `MockEmbedder` → `OllamaEmbedder` (`nomic-embed-text`); proven: answer accuracy 0.67 → 1.00 (q001 fixed). NOTE: nomic vectors are NOT length-normalized, so full cosine (with magnitude division) is required.
 - [ ] B6. Extract a `makeEmbedder()` factory to remove the duplicated embedder-picking ternary (ingest.ts + rag.ts).
 - [ ] B7. Add a real reranker — ONLY if eval shows high recall but the right chunk isn't ranked first.
 
