@@ -33,3 +33,48 @@ export class MockGenerator implements Generator {
     return { text, citations: dedupeCitations(context) };
   }
 }
+
+// Real local generator (D10). Grounded: answers ONLY from the retrieved context,
+// says "I don't know" when the answer isn't there. temperature 0 so eval runs
+// are deterministic. Requires `ollama serve` + a chat model (default llama3).
+export class OllamaGenerator implements Generator {
+  readonly name: string;
+
+  constructor(
+    private model = process.env.GEN_MODEL ?? "llama3",
+    private host = process.env.OLLAMA_HOST ?? "http://localhost:11434",
+  ) {
+    this.name = `ollama:${this.model}`;
+  }
+
+  async generate(question: string, context: RetrievedChunk[]): Promise<Answer> {
+    if (context.length === 0) {
+      return { text: "I don't know.", citations: [] };
+    }
+    const passages = context
+      .map((c, i) => `[${i + 1}] (${c.metadata.sourceDoc} p${c.metadata.page})\n${c.text}`)
+      .join("\n\n");
+    const system =
+      "You answer questions about financial filings using ONLY the provided context passages. " +
+      'Quote the exact figure or fact. If the answer is not in the context, reply exactly "I don\'t know." ' +
+      "Be concise: one sentence, no preamble, no commentary.";
+    const user = `Context:\n${passages}\n\nQuestion: ${question}`;
+
+    const res = await fetch(`${this.host}/api/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: this.model,
+        stream: false,
+        options: { temperature: 0 },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`Ollama chat failed: ${res.status}`);
+    const json = (await res.json()) as { message: { content: string } };
+    return { text: json.message.content.trim(), citations: dedupeCitations(context) };
+  }
+}

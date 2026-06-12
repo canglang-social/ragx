@@ -1,6 +1,6 @@
 import { MockEmbedder, OllamaEmbedder, type Embedder } from './embedder';
 import { InMemoryVectorStore, type VectorStore } from './vectorStore';
-import { MockGenerator, type Generator } from './generator';
+import { MockGenerator, OllamaGenerator, type Generator } from './generator';
 import { IdentityReranker, type Reranker } from './reranker';
 import type { Answer, RetrievedChunk } from './types';
 
@@ -45,10 +45,14 @@ export function defaultDeps(): RagDeps {
     process.env.EMBEDDER === 'ollama'
       ? new OllamaEmbedder()
       : new MockEmbedder();
+  const generator: Generator =
+    process.env.GENERATOR === 'ollama'
+      ? new OllamaGenerator()
+      : new MockGenerator();
   return {
     embedder,
     store: new InMemoryVectorStore(),
-    generator: new MockGenerator(),
+    generator,
     topK: Number(process.env.TOP_K ?? 5),
   };
 }
