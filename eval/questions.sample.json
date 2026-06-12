@@ -1,29 +1,29 @@
 [
   {
     "id": "q001",
-    "question": "What were Acme's total net sales in fiscal 2023?",
+    "question": "What were Meridian's total net sales in fiscal 2023?",
     "expected_answer": "$42.5 billion",
     "answer_type": "numerical",
-    "source_doc": "acme-annual-report-2023.txt",
-    "source_page": 31,
+    "source_doc": "meridian-2023.pdf",
+    "source_page": 3,
     "gold_chunk_contains": "total net sales"
   },
   {
     "id": "q002",
-    "question": "What was Acme's gross margin in fiscal 2023?",
+    "question": "What was Meridian's gross margin in fiscal 2023?",
     "expected_answer": "38.2%",
     "answer_type": "numerical",
-    "source_doc": "acme-annual-report-2023.txt",
-    "source_page": 45,
+    "source_doc": "meridian-2023.pdf",
+    "source_page": 4,
     "gold_chunk_contains": "gross margin"
   },
   {
     "id": "q003",
-    "question": "What were Acme's net sales in fiscal 2022?",
+    "question": "What were Meridian's net sales in fiscal 2022?",
     "expected_answer": "$39.4 billion",
     "answer_type": "numerical",
-    "source_doc": "acme-annual-report-2023.txt",
-    "source_page": 31,
+    "source_doc": "meridian-2023.pdf",
+    "source_page": 3,
     "gold_chunk_contains": "fiscal 2022"
   }
 ]
