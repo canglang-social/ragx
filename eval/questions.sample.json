@@ -25,5 +25,32 @@
     "source_doc": "meridian-2023.pdf",
     "source_page": 3,
     "gold_chunk_contains": "fiscal 2022"
+  },
+  {
+    "id": "q004",
+    "question": "What were Berkshire Hathaway's operating earnings in 2023?",
+    "expected_answer": "$37.4 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 6,
+    "gold_chunk_contains": "operating earnings"
+  },
+  {
+    "id": "q005",
+    "question": "What was Berkshire Hathaway's insurance float at the end of 2023?",
+    "expected_answer": "$169 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 66,
+    "gold_chunk_contains": "Float was approximately"
+  },
+  {
+    "id": "q006",
+    "question": "What were Berkshire Hathaway's net earnings attributable to shareholders in 2023?",
+    "expected_answer": "$96.2 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 82,
+    "gold_chunk_contains": "Net earnings attributable to Berkshire shareholders"
   }
 ]

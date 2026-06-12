@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { extractText, getDocumentProxy } from "unpdf";
 import { MockEmbedder, OllamaEmbedder, type Embedder } from "../src/core/embedder";
 import { InMemoryVectorStore } from "../src/core/vectorStore";
+import { splitText } from "../src/core/chunker";
 import type { Chunk } from "../src/core/types";
 
 const PDF_DIR = "data/pdfs";
@@ -15,9 +16,10 @@ function parseFilename(file: string): { company?: string; year?: number } {
   return m ? { company: m[1], year: Number(m[2]) } : {};
 }
 
-// A1 loader: one chunk per page. Real token-aware overlapping chunking is A3 —
-// a separate, separately-measurable step. The chunk + metadata shape is the
-// contract: citations and eval scoring both depend on {sourceDoc, page}.
+// PDF loader: extract per-page text, then split each page (A3) into overlapping
+// windows small enough to embed well. Each window is a chunk carrying its page —
+// the chunk + metadata shape is the contract: citations and eval scoring both
+// depend on {sourceDoc, page}. Chunking stays WITHIN a page so citations are exact.
 async function loadPdfs(dir: string): Promise<Chunk[]> {
   const files = (await readdir(dir)).filter((f) => f.toLowerCase().endsWith(".pdf"));
   const chunks: Chunk[] = [];
@@ -27,13 +29,13 @@ async function loadPdfs(dir: string): Promise<Chunk[]> {
     const { text } = await extractText(pdf, { mergePages: false });
     const { company, year } = parseFilename(file);
     text.forEach((pageText, i) => {
-      const clean = pageText.trim();
-      if (!clean) return; // skip blank pages
       const page = i + 1; // unpdf pages are 0-indexed; filings cite from 1
-      chunks.push({
-        id: `${file}#p${page}`,
-        text: clean,
-        metadata: { sourceDoc: file, page, company, year },
+      splitText(pageText).forEach((win, w) => {
+        chunks.push({
+          id: `${file}#p${page}#${w}`,
+          text: win,
+          metadata: { sourceDoc: file, page, company, year },
+        });
       });
     });
   }
