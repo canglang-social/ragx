@@ -6,7 +6,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 > **Start here today:** B5 (Ollama swap) — cheapest win, gives the first measured improvement.
 
 ## A. Ingestion — real data
-- [ ] A1. Add a PDF text extractor (TS lib); replace `loadDummyDoc()` with `loadPdfs(dir)`.
+- [x] A1. PDF text extractor via `unpdf`; `loadPdfs(dir)` → one chunk/page with `{sourceDoc, page, company, year}` (company/year from `company-year.pdf` filename). Synthetic 4-page fixture; eval holds 1.00/1.00, no regression.
 - [ ] A2. Add PaddleOCR as a separate Python preprocessing step (scanned / table-heavy pages) → JSON the loader reads.
 - [ ] A3. Real chunking: token-aware overlapping windows; preserve `{sourceDoc, page, section}` metadata.
 - [ ] A4. Add a few real annual-report PDFs to `data/pdfs/`.
