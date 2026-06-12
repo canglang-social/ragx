@@ -21,11 +21,13 @@ export function splitText(text: string, opts: ChunkOptions = {}): string[] {
   if (!clean) return [];
   if (clean.length <= maxChars) return [clean];
 
-  // Atomic segments: prefer sentence boundaries, fall back to words. Any segment
-  // longer than maxChars (e.g. a dense table row) is hard-split so no window
-  // ever exceeds the limit.
-  const raw = clean.match(/[^.!?]+[.!?]+|\S+/g) ?? [clean];
-  const segments = raw.flatMap((s) => (s.length > maxChars ? hardSplit(s.trim(), maxChars) : [s.trim()]));
+  // Atomic segments: split on sentence punctuation FOLLOWED BY whitespace, so a
+  // decimal like "$96.2" (no space after the dot) is never severed — splitting on
+  // the bare "." would corrupt every figure in a financial filing. Any sentence
+  // longer than maxChars (e.g. a dense table row) is word-split so no window
+  // exceeds the limit and no token is broken.
+  const sentences = clean.split(/(?<=[.!?])\s+/);
+  const segments = sentences.flatMap((s) => (s.length > maxChars ? hardSplit(s, maxChars) : [s]));
 
   const windows: string[] = [];
   let cur = "";
@@ -50,8 +52,27 @@ function tail(s: string, n: number): string {
   return sp === -1 ? slice : slice.slice(sp + 1);
 }
 
+// Split an over-long sentence on word boundaries so no window exceeds size and
+// no token (e.g. a decimal figure) is broken. A single token longer than size
+// is char-split only as a last resort.
 function hardSplit(s: string, size: number): string[] {
   const out: string[] = [];
-  for (let i = 0; i < s.length; i += size) out.push(s.slice(i, i + size));
+  let cur = "";
+  for (const word of s.split(/\s+/)) {
+    if (word.length > size) {
+      if (cur) {
+        out.push(cur);
+        cur = "";
+      }
+      for (let i = 0; i < word.length; i += size) out.push(word.slice(i, i + size));
+      continue;
+    }
+    if (cur && cur.length + 1 + word.length > size) {
+      out.push(cur);
+      cur = "";
+    }
+    cur = cur ? `${cur} ${word}` : word;
+  }
+  if (cur) out.push(cur);
   return out;
 }
