@@ -52,5 +52,131 @@
     "source_doc": "berkshire-2023.pdf",
     "source_page": 82,
     "gold_chunk_contains": "Net earnings attributable to Berkshire shareholders"
+  },
+  {
+    "id": "q007",
+    "question": "What was Berkshire Hathaway's insurance float at the end of 2022?",
+    "expected_answer": "$164 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 66,
+    "gold_chunk_contains": "164 billion"
+  },
+  {
+    "id": "q008",
+    "question": "What was Berkshire Hathaway's shareholders' equity at the end of 2023?",
+    "expected_answer": "$561.3 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 82,
+    "gold_chunk_contains": "561.3 billion"
+  },
+  {
+    "id": "q009",
+    "question": "How much did Berkshire Hathaway's shareholders' equity increase during 2023?",
+    "expected_answer": "$87.8 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 82,
+    "gold_chunk_contains": "increase of $87.8 billion"
+  },
+  {
+    "id": "q010",
+    "question": "What were Berkshire Hathaway's after-tax investment gains in 2023?",
+    "expected_answer": "$58.9 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 82,
+    "gold_chunk_contains": "after-tax investment gains"
+  },
+  {
+    "id": "q011",
+    "question": "What were Berkshire Hathaway's operating earnings in 2021?",
+    "expected_answer": "$27.6 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 6,
+    "gold_chunk_contains": "27.6 billion"
+  },
+  {
+    "id": "q012",
+    "question": "What were Berkshire Hathaway's operating earnings in 2022?",
+    "expected_answer": "$30.9 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 6,
+    "gold_chunk_contains": "30.9 billion"
+  },
+  {
+    "id": "q013",
+    "question": "What were Berkshire Hathaway's railroad operating earnings in 2023?",
+    "expected_answer": "$7.4 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 67,
+    "gold_chunk_contains": "Railroad operating earnings"
+  },
+  {
+    "id": "q014",
+    "question": "By how much did Berkshire Hathaway's insurance float grow from 2022 to 2023?",
+    "expected_answer": "$5 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 66,
+    "gold_chunk_contains": "Float was approximately"
+  },
+  {
+    "id": "q015",
+    "question": "How much higher were Berkshire Hathaway's operating earnings in 2023 than in 2022?",
+    "expected_answer": "$6.5 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 6,
+    "gold_chunk_contains": "operating earnings"
+  },
+  {
+    "id": "q016",
+    "question": "Who is the chairman of Berkshire Hathaway?",
+    "expected_answer": "Buffett",
+    "answer_type": "freeform",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 49,
+    "gold_chunk_contains": "Chairman of the Board"
+  },
+  {
+    "id": "q017",
+    "question": "What kind of transportation business does Berkshire Hathaway operate?",
+    "expected_answer": "freight rail",
+    "answer_type": "freeform",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 25,
+    "gold_chunk_contains": "freight rail transportation"
+  },
+  {
+    "id": "q018",
+    "question": "What was Berkshire Hathaway's revenue from cryptocurrency in 2023?",
+    "expected_answer": "I don't know",
+    "answer_type": "absent",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": ""
+  },
+  {
+    "id": "q019",
+    "question": "How much bitcoin does Berkshire Hathaway hold?",
+    "expected_answer": "I don't know",
+    "answer_type": "absent",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": ""
+  },
+  {
+    "id": "q020",
+    "question": "How many employees does Meridian Robotics have?",
+    "expected_answer": "I don't know",
+    "answer_type": "absent",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": ""
   }
 ]

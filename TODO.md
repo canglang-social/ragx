@@ -15,7 +15,8 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 - [x] B5. Swap `MockEmbedder` → `OllamaEmbedder` (`nomic-embed-text`); proven: answer accuracy 0.67 → 1.00 (q001 fixed). NOTE: nomic vectors are NOT length-normalized, so full cosine (with magnitude division) is required.
 - [ ] B6. Extract a `makeEmbedder()` factory to remove the duplicated embedder-picking ternary (ingest.ts + rag.ts).
 - [x] B7. Tried a lexical (keyword+vector) reranker. MEASURED NEGATIVE: it regresses vs feeding the wide retrieval (truncating to 5 drops gold chunks; keyword overlap not discriminative when a phrase repeats across tables). Shelved behind `RERANKER=lexical`. The real win was retrieval breadth: TOP_K 5 → 20 lifted answer 0.67 → 0.83. A cross-encoder reranker stays deferred until recall is high but rank is the proven gap.
-- [x] B8. Fixed the q005 RECALL miss. Diagnosed: "$169B float" ranked 52/1008, diluted inside an 800-char reinsurance-jargon window. Cut chunk size 800 → 350 chars (60 overlap) → it surfaces; answer 0.83 → 1.00 (6/6). Hybrid keyword retrieval not needed (yet). ⚠️ 6 single-fact cases overfit small chunks — re-validate the size under E11.
+- [x] B8. Fixed the q005 RECALL miss. Diagnosed: "$169B float" ranked 52/1008, diluted inside an 800-char reinsurance-jargon window. Cut chunk size 800 → 350 chars (60 overlap) → it surfaces; answer 0.83 → 1.00 (6/6). ⚠️ 6 single-fact cases overfit small chunks — re-validated under E11 (held up; honest 0.82/0.85 on 20).
+- [ ] B9. Hybrid keyword+vector retrieval — NOW signal-justified by E11. q007 (float "2022" not retrieved though "2023" is — phrasing sensitivity) and q013 (railroad earnings in a dense numeric table — semantically thin) are both recall misses BM25/keyword would nail. Vector-only retrieval is weak on tables and exact tokens.
 
 ## C. Vector store — deploy-critical
 - [ ] C8. Implement `PgVectorStore` behind the `VectorStore` interface (pgvector on Supabase/Neon).
@@ -26,7 +27,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 - [ ] D11. Prompt the generator to ALWAYS state the unit/scale (e.g. "$37.4 billion" / "$37,350 million"), so answers are self-contained. Right now q004 passes only because E12's matcher tolerates the unit-dropped "$37,350" — fixing the source makes it pass for the right reason and reduces reliance on lenient matching.
 
 ## E. Eval — the differentiator
-- [ ] E11. Grow the eval set from 3 → 30–50 hand-written Q/A pairs.
+- [~] E11. Grew eval 6 → 20 verified cases (17 grounded: single-fact / multi-fact / free-form + 3 absent/refusal). Honest baseline: retrieval 0.82, answer 0.85 (was a fake 1.00 on 6). Exposed B9 (table + phrasing recall) and the first v2 signal (q014 multi-hop arithmetic). Keep growing toward 30–50, add a 2nd real filing.
 - [x] E12. Numeric/unit/scale-tolerant matching for `answer_type:"numerical"` (1% tol; tries 10^3 scale steps when the answer drops its unit). Fixed the q004 false-negative: answer accuracy 0.50 → 0.67. LLM-judge for free-form deferred until a free-form case needs it.
 - [x] E13. Results table in README (retrieve-K sweep + the reranker negative result), with the per-change reasoning. Honest, apples-to-apples under E12 matching.
 - [ ] E14. Guard E12 against FALSE-POSITIVES. Loosening the matcher traded false-negatives for possible false-positives; we only luck-checked it. Add a deliberately-ambiguous / wrong-but-close case (e.g. a near-miss number) that the matcher MUST still mark wrong, so the tolerance can't silently over-pass.

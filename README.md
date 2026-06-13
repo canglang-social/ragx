@@ -32,10 +32,22 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap.
 
 ## Eval results
 
-Eval set: **6 cases** — 3 from a synthetic clean fixture + 3 from a real 152-page
-Berkshire Hathaway 2023 annual report. Local pipeline: `nomic-embed-text` (Ollama)
-+ `llama3`, with numeric/unit-tolerant answer matching. Reproduce with
-`pnpm ingest:ollama && pnpm eval:ollama` (requires Ollama).
+Eval set: **20 cases** over a synthetic fixture + a real 152-page Berkshire
+Hathaway 2023 filing — 17 grounded (single-fact, multi-fact, free-form) + 3
+*absent* (answer is in no doc; the system must refuse, not invent). Local
+pipeline: `nomic-embed-text` + `llama3`, numeric/unit-tolerant matching.
+Reproduce: `pnpm ingest:ollama && pnpm eval:ollama` (requires Ollama).
+
+**Current: Retrieval hit@20 = 0.82 (14/17 grounded) · Answer accuracy = 0.85 (17/20).**
+
+What a 20-case set exposed that 6 cases hid:
+
+- ✅ **No hallucination** — all 3 *absent* cases pass: asked about crypto / bitcoin / an employee count not in the filings, the system answers *"I don't know."*
+- ❌ **Table retrieval is weak** (q013): a figure inside a dense numeric table doesn't embed well for a semantic query.
+- ❌ **Phrasing sensitivity** (q007): the same float sentence is retrieved for "…end of 2023" but not "…end of 2022".
+- ❌ **Multi-hop arithmetic** (q014): the generator retrieves both float numbers but doesn't compute the year-over-year difference — the first concrete signal for agentic/multi-step RAG (v2).
+
+### How we tuned the pipeline (6-case progression)
 
 | Pipeline | Retrieval hit | Answer accuracy |
 | --- | --- | --- |
@@ -43,13 +55,11 @@ Berkshire Hathaway 2023 annual report. Local pipeline: `nomic-embed-text` (Ollam
 | 800-char chunks, retrieve 20 | 0.83 | 0.83 |
 | 800-char chunks, retrieve 40 | 0.83 | 0.67 |
 | 800-char chunks, retrieve 20, lexical rerank → 5 | 0.50 | 0.67 |
-| **350-char chunks, retrieve 20** _(shipped)_ | **1.00** | **1.00** |
+| 350-char chunks, retrieve 20 _(shipped)_ | 1.00 | 1.00 |
 
-What the numbers say (each change justified by its delta):
+- **Breadth 5 → 20** lifted both metrics — the net-earnings gold chunk ranks ~6–20 by vector, so a wider fetch put it in front of the generator.
+- **40 hurt answers** — more context = more distractors; the generator was pulled off a correct answer.
+- **A lexical reranker regressed** (kept behind `RERANKER=lexical` as a documented negative result): truncating to 5 drops the gold chunk, and keyword overlap can't single it out when a phrase repeats across subsidiary tables.
+- **800 → 350-char chunks** fixed the diluted-float miss (it had ranked 52/1008 inside a reinsurance-jargon window). Tune via `CHUNK_CHARS`.
 
-- **Retrieval breadth 5 → 20 lifted both metrics** — the net-earnings gold chunk ranks ~6–20 by vector similarity, so a wider fetch put it in front of the generator.
-- **40 hurt answers** — more context means more distractor passages; the generator was pulled off a previously-correct answer.
-- **A lexical reranker regressed** (kept behind `RERANKER=lexical` as a documented negative result): truncating back to 5 drops the gold chunk, and keyword overlap can't single it out when the phrase repeats across subsidiary tables.
-- **800 → 350-char chunks fixed the last failure** — the "$169B float" fact was diluted inside an 800-char window of reinsurance jargon (ranked 52/1008); smaller windows surface it. Tune via `CHUNK_CHARS`.
-
-> ⚠️ **`1.00` on 6 cases is not "solved."** All six are single-fact lookups, which structurally favor small chunks — the eval is too small to trust the score or to validate the chunk size. Next: **grow the eval to 30–50 cases** (incl. multi-fact) to see what this config actually breaks on. Earlier milestones (real-PDF ingestion, a decimal-severing chunker bug, the grounded generator, numeric matching) are in the commit history and [TODO.md](TODO.md).
+> The 6-case set scored 1.00 on this config — which is exactly why it was untrustworthy. Growing to 20 (incl. multi-fact + refusal) dropped it to an honest 0.82 / 0.85 and surfaced the three failures above. Earlier milestones (real-PDF ingestion, a decimal-severing chunker bug, the grounded generator, numeric matching) are in the commit history and [TODO.md](TODO.md).

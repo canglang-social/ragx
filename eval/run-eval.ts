@@ -10,9 +10,9 @@ interface EvalCase {
   id: string;
   question: string;
   expected_answer: string;
-  answer_type: string;
-  source_doc: string;
-  source_page: number;
+  answer_type: string; // "numerical" | "freeform" | "absent"
+  source_doc: string | null; // null for absent (answer is not in any doc)
+  source_page: number | null;
   gold_chunk_contains: string;
 }
 
@@ -60,6 +60,13 @@ function numbersMatch(gold: Amount, got: Amount, relTol = 0.01): boolean {
 }
 
 function answerMatches(c: EvalCase, answerText: string): boolean {
+  // "absent": the fact isn't in the corpus, so a correct answer DECLINES rather
+  // than inventing one. This is the no-hallucination test.
+  if (c.answer_type === "absent") {
+    return /\b(i\s+)?don'?t\s+know\b|not\s+(stated|provided|available|mentioned|specified|disclosed|in\s+the)/i.test(
+      answerText,
+    );
+  }
   if (c.answer_type === "numerical") {
     const gold = extractAmounts(c.expected_answer)[0];
     if (gold) return extractAmounts(answerText).some((a) => numbersMatch(gold, a));
@@ -74,6 +81,7 @@ async function main(): Promise<void> {
   const topK = deps.topK ?? 5;
 
   let hits = 0;
+  let retrievalTotal = 0; // grounded cases only — absent cases have no gold chunk
   let correct = 0;
   let ctxSize = 0; // chunks actually fed to the generator (post-rerank), for honest labeling
 
@@ -81,26 +89,33 @@ async function main(): Promise<void> {
     const { answer, retrieved } = await answerQuestion(c.question, deps);
     ctxSize = Math.max(ctxSize, retrieved.length);
 
-    const retrievalHit = retrieved.some(
-      (r) =>
-        r.metadata.page === c.source_page &&
-        r.text.toLowerCase().includes(c.gold_chunk_contains.toLowerCase()),
-    );
+    const grounded = c.answer_type !== "absent";
+    const retrievalHit =
+      grounded &&
+      retrieved.some(
+        (r) =>
+          r.metadata.page === c.source_page &&
+          r.text.toLowerCase().includes(c.gold_chunk_contains.toLowerCase()),
+      );
     const answerOk = answerMatches(c, answer.text);
 
-    if (retrievalHit) hits++;
+    if (grounded) {
+      retrievalTotal++;
+      if (retrievalHit) hits++;
+    }
     if (answerOk) correct++;
 
+    const retrievalCol = grounded ? (retrievalHit ? "PASS" : "FAIL") : "n/a ";
     console.log(
-      `${c.id}  retrieval=${retrievalHit ? "PASS" : "FAIL"}  answer=${answerOk ? "PASS" : "FAIL"}  | ${c.question}`,
+      `${c.id}  retrieval=${retrievalCol}  answer=${answerOk ? "PASS" : "FAIL"}  | ${c.question}`,
     );
   }
 
   const n = cases.length;
   console.log("\n--- Eval summary ---");
-  console.log(`Cases:              ${n}`);
+  console.log(`Cases:              ${n}  (${retrievalTotal} grounded, ${n - retrievalTotal} absent)`);
   console.log(`Pipeline:           retrieve ${topK} → ${deps.reranker?.name ?? "identity"} → ${deps.generator.name}`);
-  console.log(`Retrieval hit@${ctxSize}:     ${(hits / n).toFixed(2)}  (${hits}/${n})  (gold in generator context)`);
+  console.log(`Retrieval hit@${ctxSize}:     ${(hits / retrievalTotal).toFixed(2)}  (${hits}/${retrievalTotal})  (gold in generator context, grounded only)`);
   console.log(`Answer accuracy:    ${(correct / n).toFixed(2)}  (${correct}/${n})`);
 }
 
