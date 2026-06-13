@@ -30,7 +30,10 @@ async function loadPdfs(dir: string): Promise<Chunk[]> {
     const { company, year } = parseFilename(file);
     text.forEach((pageText, i) => {
       const page = i + 1; // unpdf pages are 0-indexed; filings cite from 1
-      splitText(pageText).forEach((win, w) => {
+      splitText(pageText, {
+        maxChars: process.env.CHUNK_CHARS ? Number(process.env.CHUNK_CHARS) : undefined,
+        overlapChars: process.env.CHUNK_OVERLAP ? Number(process.env.CHUNK_OVERLAP) : undefined,
+      }).forEach((win, w) => {
         chunks.push({
           id: `${file}#p${page}#${w}`,
           text: win,

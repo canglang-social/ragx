@@ -15,7 +15,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 - [x] B5. Swap `MockEmbedder` → `OllamaEmbedder` (`nomic-embed-text`); proven: answer accuracy 0.67 → 1.00 (q001 fixed). NOTE: nomic vectors are NOT length-normalized, so full cosine (with magnitude division) is required.
 - [ ] B6. Extract a `makeEmbedder()` factory to remove the duplicated embedder-picking ternary (ingest.ts + rag.ts).
 - [x] B7. Tried a lexical (keyword+vector) reranker. MEASURED NEGATIVE: it regresses vs feeding the wide retrieval (truncating to 5 drops gold chunks; keyword overlap not discriminative when a phrase repeats across tables). Shelved behind `RERANKER=lexical`. The real win was retrieval breadth: TOP_K 5 → 20 lifted answer 0.67 → 0.83. A cross-encoder reranker stays deferred until recall is high but rank is the proven gap.
-- [ ] B8. Fix the q005 RECALL miss (the one open failure). Diagnosed: the "$169 billion float" sentence ranks 52/1008 because it's diluted inside an 800-char window of reinsurance-accounting jargon. Try smaller chunks first (cheap, one param); if that's not enough, add hybrid keyword+vector retrieval at query time ("float" is a distinctive term BM25 would nail). Reranking can't help — the chunk is never fetched.
+- [x] B8. Fixed the q005 RECALL miss. Diagnosed: "$169B float" ranked 52/1008, diluted inside an 800-char reinsurance-jargon window. Cut chunk size 800 → 350 chars (60 overlap) → it surfaces; answer 0.83 → 1.00 (6/6). Hybrid keyword retrieval not needed (yet). ⚠️ 6 single-fact cases overfit small chunks — re-validate the size under E11.
 
 ## C. Vector store — deploy-critical
 - [ ] C8. Implement `PgVectorStore` behind the `VectorStore` interface (pgvector on Supabase/Neon).

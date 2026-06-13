@@ -3,15 +3,22 @@
 //
 // WHY: real filing pages run 4k–10k chars. One vector can't represent a page
 // that mixes ten facts, and it overflows the embedder's context (nomic ~2048
-// tokens). We split into ~200-token windows with overlap so a fact isn't
-// severed at a window boundary. Token count is approximated as chars/4.
+// tokens). We split into small overlapping windows so a fact isn't severed at a
+// boundary and isn't diluted by surrounding text. Token count ≈ chars/4.
+//
+// SIZE IS TUNED, NOT GUESSED: 350 chars (~90 tokens) beat 800 on the eval — at
+// 800 the "$169B float" fact was diluted inside a jargon-heavy window and ranked
+// 52/1008; at 350 it surfaces and q005 passes (answer 0.83 → 1.00 on 6 cases).
+// Override per-ingest with CHUNK_CHARS / CHUNK_OVERLAP to re-tune. NOTE: validate
+// against a larger eval (E11) — our cases are all single-fact, which favors small
+// chunks; multi-fact questions may want more context.
 
 export interface ChunkOptions {
-  maxChars?: number; // target window size; nomic token ≈ 4 chars, so 800 ≈ 200 tokens
+  maxChars?: number; // target window size; nomic token ≈ 4 chars, so 350 ≈ ~90 tokens
   overlapChars?: number; // carried-over tail between consecutive windows
 }
 
-const DEFAULTS = { maxChars: 800, overlapChars: 120 };
+const DEFAULTS = { maxChars: 350, overlapChars: 60 };
 
 export function splitText(text: string, opts: ChunkOptions = {}): string[] {
   const maxChars = opts.maxChars ?? DEFAULTS.maxChars;

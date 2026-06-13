@@ -39,17 +39,17 @@ Berkshire Hathaway 2023 annual report. Local pipeline: `nomic-embed-text` (Ollam
 
 | Pipeline | Retrieval hit | Answer accuracy |
 | --- | --- | --- |
-| retrieve 5, identity | 0.67 | 0.67 |
-| retrieve 10, identity | 0.67 | 0.67 |
-| **retrieve 20, identity** _(shipped)_ | **0.83** | **0.83** |
-| retrieve 40, identity | 0.83 | 0.67 |
-| retrieve 20, lexical rerank → 5 | 0.50 | 0.67 |
+| 800-char chunks, retrieve 5 | 0.67 | 0.67 |
+| 800-char chunks, retrieve 20 | 0.83 | 0.83 |
+| 800-char chunks, retrieve 40 | 0.83 | 0.67 |
+| 800-char chunks, retrieve 20, lexical rerank → 5 | 0.50 | 0.67 |
+| **350-char chunks, retrieve 20** _(shipped)_ | **1.00** | **1.00** |
 
 What the numbers say (each change justified by its delta):
 
-- **Retrieval breadth 5 → 20 lifted both metrics** — the gold chunk for the net-earnings question ranks ~6–20 by vector similarity, so a wider fetch is what put it in front of the generator.
+- **Retrieval breadth 5 → 20 lifted both metrics** — the net-earnings gold chunk ranks ~6–20 by vector similarity, so a wider fetch put it in front of the generator.
 - **40 hurt answers** — more context means more distractor passages; the generator was pulled off a previously-correct answer.
-- **A lexical reranker regressed** (kept behind `RERANKER=lexical` as a documented negative result): truncating back to 5 drops the gold chunk, and keyword overlap can't single it out when the phrase repeats across many subsidiary tables.
-- **The one remaining miss is a recall failure** — that chunk isn't retrieved even at 40. That's an index-time problem (chunking / hybrid search), which no amount of reranking can fix.
+- **A lexical reranker regressed** (kept behind `RERANKER=lexical` as a documented negative result): truncating back to 5 drops the gold chunk, and keyword overlap can't single it out when the phrase repeats across subsidiary tables.
+- **800 → 350-char chunks fixed the last failure** — the "$169B float" fact was diluted inside an 800-char window of reinsurance jargon (ranked 52/1008); smaller windows surface it. Tune via `CHUNK_CHARS`.
 
-> Earlier milestones (real-PDF ingestion, a chunker bug that severed decimals, the real grounded generator, numeric matching) are in the commit history and [TODO.md](TODO.md). Next: grow the eval set to 30–50 cases and attack the recall miss.
+> ⚠️ **`1.00` on 6 cases is not "solved."** All six are single-fact lookups, which structurally favor small chunks — the eval is too small to trust the score or to validate the chunk size. Next: **grow the eval to 30–50 cases** (incl. multi-fact) to see what this config actually breaks on. Earlier milestones (real-PDF ingestion, a decimal-severing chunker bug, the grounded generator, numeric matching) are in the commit history and [TODO.md](TODO.md).
