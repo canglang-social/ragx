@@ -14,7 +14,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 ## B. Embedding & retrieval
 - [x] B5. Swap `MockEmbedder` → `OllamaEmbedder` (`nomic-embed-text`); proven: answer accuracy 0.67 → 1.00 (q001 fixed). NOTE: nomic vectors are NOT length-normalized, so full cosine (with magnitude division) is required.
 - [ ] B6. Extract a `makeEmbedder()` factory to remove the duplicated embedder-picking ternary (ingest.ts + rag.ts).
-- [ ] B7. Add a real reranker — ONLY if eval shows high recall but the right chunk isn't ranked first.
+- [x] B7. Tried a lexical (keyword+vector) reranker. MEASURED NEGATIVE: it regresses vs feeding the wide retrieval (truncating to 5 drops gold chunks; keyword overlap not discriminative when a phrase repeats across tables). Shelved behind `RERANKER=lexical`. The real win was retrieval breadth: TOP_K 5 → 20 lifted answer 0.67 → 0.83. A cross-encoder reranker stays deferred until recall is high but rank is the proven gap.
 
 ## C. Vector store — deploy-critical
 - [ ] C8. Implement `PgVectorStore` behind the `VectorStore` interface (pgvector on Supabase/Neon).
@@ -26,7 +26,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 ## E. Eval — the differentiator
 - [ ] E11. Grow the eval set from 3 → 30–50 hand-written Q/A pairs.
 - [x] E12. Numeric/unit/scale-tolerant matching for `answer_type:"numerical"` (1% tol; tries 10^3 scale steps when the answer drops its unit). Fixed the q004 false-negative: answer accuracy 0.50 → 0.67. LLM-judge for free-form deferred until a free-form case needs it.
-- [ ] E13. Record metric deltas per change → a results table in README.
+- [x] E13. Results table in README (retrieve-K sweep + the reranker negative result), with the per-change reasoning. Honest, apples-to-apples under E12 matching.
 
 ## F. Web / UX
 - [ ] F14. Error + loading states in `page.tsx` `ask()`. Optional: stream the answer; render sources nicely.

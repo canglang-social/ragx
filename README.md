@@ -32,9 +32,24 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap.
 
 ## Eval results
 
-| Metric | Score |
-| --- | --- |
-| Retrieval hit@5 | _run `pnpm eval`_ |
-| Answer accuracy | _run `pnpm eval`_ |
+Eval set: **6 cases** — 3 from a synthetic clean fixture + 3 from a real 152-page
+Berkshire Hathaway 2023 annual report. Local pipeline: `nomic-embed-text` (Ollama)
++ `llama3`, with numeric/unit-tolerant answer matching. Reproduce with
+`pnpm ingest:ollama && pnpm eval:ollama` (requires Ollama).
 
-> Sample data is a tiny dummy filing with 3 eval cases. Replace with real 10-Ks and grow the eval set to 30–50 cases (v1).
+| Pipeline | Retrieval hit | Answer accuracy |
+| --- | --- | --- |
+| retrieve 5, identity | 0.67 | 0.67 |
+| retrieve 10, identity | 0.67 | 0.67 |
+| **retrieve 20, identity** _(shipped)_ | **0.83** | **0.83** |
+| retrieve 40, identity | 0.83 | 0.67 |
+| retrieve 20, lexical rerank → 5 | 0.50 | 0.67 |
+
+What the numbers say (each change justified by its delta):
+
+- **Retrieval breadth 5 → 20 lifted both metrics** — the gold chunk for the net-earnings question ranks ~6–20 by vector similarity, so a wider fetch is what put it in front of the generator.
+- **40 hurt answers** — more context means more distractor passages; the generator was pulled off a previously-correct answer.
+- **A lexical reranker regressed** (kept behind `RERANKER=lexical` as a documented negative result): truncating back to 5 drops the gold chunk, and keyword overlap can't single it out when the phrase repeats across many subsidiary tables.
+- **The one remaining miss is a recall failure** — that chunk isn't retrieved even at 40. That's an index-time problem (chunking / hybrid search), which no amount of reranking can fix.
+
+> Earlier milestones (real-PDF ingestion, a chunker bug that severed decimals, the real grounded generator, numeric matching) are in the commit history and [TODO.md](TODO.md). Next: grow the eval set to 30–50 cases and attack the recall miss.

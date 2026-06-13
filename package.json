@@ -10,7 +10,7 @@
     "ingest": "tsx scripts/ingest.ts",
     "ingest:ollama": "EMBEDDER=ollama tsx scripts/ingest.ts",
     "eval": "tsx eval/run-eval.ts",
-    "eval:ollama": "EMBEDDER=ollama GENERATOR=ollama tsx eval/run-eval.ts",
+    "eval:ollama": "EMBEDDER=ollama GENERATOR=ollama TOP_K=20 tsx eval/run-eval.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

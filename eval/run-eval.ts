@@ -75,9 +75,11 @@ async function main(): Promise<void> {
 
   let hits = 0;
   let correct = 0;
+  let ctxSize = 0; // chunks actually fed to the generator (post-rerank), for honest labeling
 
   for (const c of cases) {
     const { answer, retrieved } = await answerQuestion(c.question, deps);
+    ctxSize = Math.max(ctxSize, retrieved.length);
 
     const retrievalHit = retrieved.some(
       (r) =>
@@ -97,7 +99,8 @@ async function main(): Promise<void> {
   const n = cases.length;
   console.log("\n--- Eval summary ---");
   console.log(`Cases:              ${n}`);
-  console.log(`Retrieval hit@${topK}:     ${(hits / n).toFixed(2)}  (${hits}/${n})`);
+  console.log(`Pipeline:           retrieve ${topK} → ${deps.reranker?.name ?? "identity"} → ${deps.generator.name}`);
+  console.log(`Retrieval hit@${ctxSize}:     ${(hits / n).toFixed(2)}  (${hits}/${n})  (gold in generator context)`);
   console.log(`Answer accuracy:    ${(correct / n).toFixed(2)}  (${correct}/${n})`);
 }
 

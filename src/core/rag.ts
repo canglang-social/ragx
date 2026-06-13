@@ -1,7 +1,7 @@
 import { MockEmbedder, OllamaEmbedder, type Embedder } from './embedder';
 import { InMemoryVectorStore, type VectorStore } from './vectorStore';
 import { MockGenerator, OllamaGenerator, type Generator } from './generator';
-import { IdentityReranker, type Reranker } from './reranker';
+import { IdentityReranker, LexicalReranker, type Reranker } from './reranker';
 import type { Answer, RetrievedChunk } from './types';
 
 export interface RagDeps {
@@ -49,10 +49,19 @@ export function defaultDeps(): RagDeps {
     process.env.GENERATOR === 'ollama'
       ? new OllamaGenerator()
       : new MockGenerator();
+  // Reranker defaults to identity (passthrough). A lexical reranker exists behind
+  // RERANKER=lexical, but A/B showed it REGRESSES vs feeding the wide topK at 20
+  // (it truncates out gold chunks; keyword overlap isn't discriminative when a
+  // phrase repeats across subsidiary tables). Kept as a documented negative result.
+  const reranker: Reranker =
+    process.env.RERANKER === 'lexical'
+      ? new LexicalReranker()
+      : new IdentityReranker();
   return {
     embedder,
     store: new InMemoryVectorStore(),
     generator,
+    reranker,
     topK: Number(process.env.TOP_K ?? 5),
   };
 }
