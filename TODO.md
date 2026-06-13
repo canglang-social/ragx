@@ -3,7 +3,7 @@
 Granular, churny task list. The stable "why" lives in [docs/DESIGN.md](docs/DESIGN.md).
 v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 
-> **Start here today:** B5 (Ollama swap) — cheapest win, gives the first measured improvement.
+> **Status:** real-PDF pipeline at **0.83/0.83** on 6 cases (retrieve 20 → identity → llama3, unit-tolerant matching). One open failure: **B8 (q005 recall)**. Deploy path (C8/C9 → G15/G16) is the road to the live URL.
 
 ## A. Ingestion — real data
 - [x] A1. PDF text extractor via `unpdf`; `loadPdfs(dir)` → one chunk/page with `{sourceDoc, page, company, year}` (company/year from `company-year.pdf` filename). Synthetic 4-page fixture; eval holds 1.00/1.00, no regression.
@@ -15,6 +15,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 - [x] B5. Swap `MockEmbedder` → `OllamaEmbedder` (`nomic-embed-text`); proven: answer accuracy 0.67 → 1.00 (q001 fixed). NOTE: nomic vectors are NOT length-normalized, so full cosine (with magnitude division) is required.
 - [ ] B6. Extract a `makeEmbedder()` factory to remove the duplicated embedder-picking ternary (ingest.ts + rag.ts).
 - [x] B7. Tried a lexical (keyword+vector) reranker. MEASURED NEGATIVE: it regresses vs feeding the wide retrieval (truncating to 5 drops gold chunks; keyword overlap not discriminative when a phrase repeats across tables). Shelved behind `RERANKER=lexical`. The real win was retrieval breadth: TOP_K 5 → 20 lifted answer 0.67 → 0.83. A cross-encoder reranker stays deferred until recall is high but rank is the proven gap.
+- [ ] B8. Fix the q005 RECALL miss (the one open failure). Diagnosed: the "$169 billion float" sentence ranks 52/1008 because it's diluted inside an 800-char window of reinsurance-accounting jargon. Try smaller chunks first (cheap, one param); if that's not enough, add hybrid keyword+vector retrieval at query time ("float" is a distinctive term BM25 would nail). Reranking can't help — the chunk is never fetched.
 
 ## C. Vector store — deploy-critical
 - [ ] C8. Implement `PgVectorStore` behind the `VectorStore` interface (pgvector on Supabase/Neon).
@@ -22,11 +23,13 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 
 ## D. Generation
 - [x] D10. `OllamaGenerator` (llama3) behind the seam: grounded prompt, temp 0, GENERATOR=ollama switch. Grounding works — answered q004 correctly from the table ($37,350M) and honestly said "I don't know" on q005 (no context). Hosted generator for deploy is still G15.
+- [ ] D11. Prompt the generator to ALWAYS state the unit/scale (e.g. "$37.4 billion" / "$37,350 million"), so answers are self-contained. Right now q004 passes only because E12's matcher tolerates the unit-dropped "$37,350" — fixing the source makes it pass for the right reason and reduces reliance on lenient matching.
 
 ## E. Eval — the differentiator
 - [ ] E11. Grow the eval set from 3 → 30–50 hand-written Q/A pairs.
 - [x] E12. Numeric/unit/scale-tolerant matching for `answer_type:"numerical"` (1% tol; tries 10^3 scale steps when the answer drops its unit). Fixed the q004 false-negative: answer accuracy 0.50 → 0.67. LLM-judge for free-form deferred until a free-form case needs it.
 - [x] E13. Results table in README (retrieve-K sweep + the reranker negative result), with the per-change reasoning. Honest, apples-to-apples under E12 matching.
+- [ ] E14. Guard E12 against FALSE-POSITIVES. Loosening the matcher traded false-negatives for possible false-positives; we only luck-checked it. Add a deliberately-ambiguous / wrong-but-close case (e.g. a near-miss number) that the matcher MUST still mark wrong, so the tolerance can't silently over-pass.
 
 ## F. Web / UX
 - [ ] F14. Error + loading states in `page.tsx` `ask()`. Optional: stream the answer; render sources nicely.
