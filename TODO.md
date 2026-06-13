@@ -25,7 +25,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 
 ## E. Eval — the differentiator
 - [ ] E11. Grow the eval set from 3 → 30–50 hand-written Q/A pairs.
-- [ ] E12. Better matching — NOW TRIGGERED by a measured false-negative: q004's correct answer "$37,350" (million) is marked wrong vs gold "$42.5 billion"-style strings. Need numeric/unit-tolerant matching (or LLM-judge). The metric currently UNDER-reports quality.
+- [x] E12. Numeric/unit/scale-tolerant matching for `answer_type:"numerical"` (1% tol; tries 10^3 scale steps when the answer drops its unit). Fixed the q004 false-negative: answer accuracy 0.50 → 0.67. LLM-judge for free-form deferred until a free-form case needs it.
 - [ ] E13. Record metric deltas per change → a results table in README.
 
 ## F. Web / UX
