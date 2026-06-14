@@ -28,7 +28,10 @@ Ingestion:  docs -> chunk(+page metadata) -> Embedder -> VectorStore
 Query:      question -> Embedder -> VectorStore.query -> Reranker -> Generator -> Answer + citations
 ```
 
-See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap.
+See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap. Also:
+[principles.md](docs/principles.md) (the reasoning rules, tagged hard/convention/project),
+[eval-case-studies.md](docs/eval-case-studies.md) (per-case diagnosis → fix), and
+[learning-log.md](docs/learning-log.md) (concepts worked through while building).
 
 ## Eval results
 
