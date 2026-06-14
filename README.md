@@ -31,7 +31,8 @@ Query:      question -> Embedder -> VectorStore.query -> Reranker -> Generator -
 See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap. Also:
 [principles.md](docs/principles.md) (the reasoning rules, tagged hard/convention/project),
 [eval-case-studies.md](docs/eval-case-studies.md) (per-case diagnosis → fix), and
-[learning-log.md](docs/learning-log.md) (concepts worked through while building).
+[learning-log.md](docs/learning-log.md) (concepts worked through while building), and
+[learning-cards.md](docs/learning-cards.md) (those concepts as Logseq → Anki flashcards).
 
 ## Eval results
 

@@ -6,7 +6,9 @@ entry carries a `(captured YYYY-MM-DD)` tag so the timeline survives too.
 
 > Capture vs reference are different jobs: capture by date (low-friction, your dated
 > notes), distill into topic notes here. Companion to [principles.md](principles.md)
-> (the rules) and [eval-case-studies.md](eval-case-studies.md) (the debugging).
+> (the rules), [eval-case-studies.md](eval-case-studies.md) (the debugging), and
+> [learning-cards.md](learning-cards.md) (the same material as Logseq → Anki flashcards
+> for spaced repetition).
 
 ## Env & Bash
 

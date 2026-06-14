@@ -1,0 +1,78 @@
+- # Learning cards — ragx
+- Spaced-repetition deck for [Logseq](https://logseq.com/) → Anki. Each `#card` block's text is the front; its indented children are the back. Every card is tagged with a **topic** and a **capture date** (both `#[[…]]` so they sync as Anki tags). Prose versions live in [learning-log.md](learning-log.md); the rules in [principles.md](principles.md).
+- ## RAG fundamentals
+	- Why use an embedder — why not just hand the files to the LLM? #card #[[RAG fundamentals]] #[[2026-06-08]]
+		- An LLM's context window is finite and its weights are frozen at training time — it can't hold a whole corpus or know your private/newer docs.
+		- RAG embeds + retrieves only the relevant chunks → small, current, grounded (citable) context. Stuffing whole files wastes the window and breaks past it.
+	- What is a vector (in RAG)? #card #[[RAG fundamentals]] #[[2026-06-08]]
+		- An ordered list of numbers = coordinates of a point in high-dimensional space. An embedding turns text into one so meaning becomes geometry (nearby points = similar meaning).
+	- Why RAG? Which LLM limits does it fix? #card #[[RAG fundamentals]] #[[2026-06-10]]
+		- Frozen knowledge (training cutoff), no access to private data, finite context, and hallucination. RAG injects retrieved, citable facts at query time to address all four.
+	- What is the one core idea of RAG? #card #[[RAG fundamentals]] #[[2026-06-10]]
+		- Don't bake knowledge into the model's weights — keep it in an external store and retrieve only the relevant slice per question → grounded, updatable, citable.
+- ## Embeddings & math
+	- What is an embedding? #card #[[Embeddings]] #[[2026-06-10]]
+		- A model that maps text → a fixed-length vector where meaning is distributed across learned dimensions; similar meanings land on nearby vectors.
+	- What do the embedding dimensions mean? #card #[[Embeddings]] #[[2026-06-10]]
+		- They are not human-named features — meaning is spread across all of them (learned, anonymous). nomic-embed-text = 768 dims.
+	- How do you measure distance between two vectors? #card #[[Embeddings]] #[[2026-06-10]]
+		- L1 (Manhattan) = Σ|aᵢ−bᵢ|; L2 (Euclidean) = √Σ(aᵢ−bᵢ)². Both are affected by vector length, which is why we prefer cosine for meaning.
+	- Why cosine instead of distance? What is it, and how is it computed? #card #[[Embeddings]] #[[2026-06-10]]
+		- Cosine compares **direction (angle)**, ignoring magnitude, so length doesn't distort meaning. cosine = dot(a,b) / (‖a‖·‖b‖); range −1..1, where 1 = same direction.
+	- L1 norm vs L2 norm? #card #[[Embeddings]] #[[2026-06-10]]
+		- A norm = a vector's length. L1 = Σ|xᵢ| (sum of absolutes). L2 = √Σxᵢ² (Pythagoras). The cosine denominator uses the L2 norm of each vector.
+	- Is an embedder's output already length-normalized? #card #[[Embeddings]] #[[2026-06-10]]
+		- Not always — nomic vectors are NOT length-1, so `cosine()` must divide by the magnitudes itself; a bare dot product would be wrong. (Some embedders DO pre-normalize, making dot = cosine.)
+	- Norm vs normalization (min-max)? #card #[[Embeddings]] #[[2026-06-14]]
+		- Norm = one vector's length (L1/L2). Normalization = rescaling a SET of values (min-max → [0,1]; z-score → mean 0/std 1). Different categories. We min-max the reranker's two signals so each has equal voice despite different spreads.
+- ## Retrieval & reranking
+	- What is an A/B test (in this project)? #card #[[Retrieval]] #[[2026-06-14]]
+		- Run two variants changing exactly one variable, hold the rest, let the eval decide. Two changes at once = a confound. Trust scales with eval size (20 cases → 1 = 5%).
+	- What is a reranker — kinds, and two-stage retrieval? #card #[[Retrieval]] #[[2026-06-14]]
+		- Reorders retrieved candidates, keeps the best few. Kinds: lexical/BM25, cross-encoder (the "real" one), LLM-judge, fusion. Two-stage: bi-encoder retrieves wide → cross-encoder reranks narrow. (Our lexical reranker was A/B-tested and regressed → shelved.)
+- ## Tokens & models
+	- How do you find a model's context length, and in what unit? #card #[[Tokens & models]] #[[2026-06-14]]
+		- `ollama show <model>` or the model card. Unit = tokens (EN ≈ 4 chars/token, ZH ≈ 1–1.5). Differs per model and language. Hard window ≠ practical sweet spot; embedder limit (nomic 2048) ≠ generator window (llama3 8192).
+- ## Chunking & parameters
+	- How was the chunk size (800 → 350) chosen? #card #[[Chunking]] #[[2026-06-14]]
+		- 800/120 = a convention-based default (≈200 tokens), not measured. 350 = the measured correction (q005's float fact was diluted in an 800-char window, ranked 52/1008). Principle: defensible default behind a knob → let the eval move it.
+- ## VectorStore & pipeline
+	- What two methods does the VectorStore interface expose? #card #[[VectorStore]] #[[2026-06-09]]
+		- `upsert(entries)` adds/replaces {chunk, vector} pairs; `query(vector, topK)` returns the topK nearest chunks. Depend on this interface, never a concrete vendor.
+	- How does the store get "similarity of meaning"? #card #[[VectorStore]] #[[2026-06-09]]
+		- It cosine-compares the query vector against every stored chunk vector and returns the highest — meaning-similarity = vector-direction-similarity.
+	- What is the InMemoryVectorStore lifecycle (load / persist / reset)? #card #[[VectorStore]] #[[2026-06-09]]
+		- File-backed (`data/index.json`): `load()` reads file → in-memory records (once), `persist()` writes records → file, `reset()` empties and re-persists. Local-only — Vercel needs a `PgVectorStore`.
+	- Why does `upsert` take paired {chunk, vector} instead of two arrays? #card #[[VectorStore]] #[[2026-06-09]]
+		- Parallel arrays can desync (misaligned indices). Pairing chunk+vector at the boundary makes misalignment impossible — the refactor we made.
+	- Does `query` need the index loaded first? #card #[[VectorStore]] #[[2026-06-09]]
+		- Yes — query reads from in-memory records, so the store lazy-loads the persisted file on first use before comparing.
+	- Why run `pnpm ingest` if `index.json` already exists? #card #[[VectorStore]] #[[2026-06-08]]
+		- ingest REBUILDS the index from source docs — needed whenever docs, chunker, or embedder change. The index is a derived artifact, not source.
+	- Why did plain `pnpm eval` return 0.00? #card #[[VectorStore]] #[[2026-06-13]]
+		- The index was built with the Ollama embedder (768-d) but plain `eval` defaults to the mock embedder (256-d) → different vector spaces → meaningless cosine. Ingest and query MUST share an embedder.
+- ## TypeScript & runtime
+	- What is a class, and how does Node run this TypeScript? #card #[[TypeScript]] #[[2026-06-09]]
+		- A class bundles data + methods behind an interface contract; we use them for the seams (e.g. `MockEmbedder implements Embedder`). `tsx` runs the `.ts` directly, no separate compile step.
+	- Why do the seam methods return `Promise` / use `async`? #card #[[TypeScript]] #[[2026-06-09]]
+		- Embedding / LLM / DB calls are I/O — async so they don't block; a Promise is a future value. Making the interface async lets a real network impl drop in without changing callers.
+	- How does `EMBEDDER=ollama npx tsx …` reach `process.env`? #card #[[TypeScript]] #[[2026-06-14]]
+		- A `VAR=value` prefix sets an env var for that one process; Node reads `process.env.VAR`. Distinct from arguments (`process.argv`). Scopes: inline / `export` / `~/.zshrc`.
+- ## Agents & Claude Code
+	- What are Claude Code's built-in agents? #card #[[Agents]] #[[2026-06-07]]
+		- Ready-made agent types you invoke (general-purpose, Explore, Plan, …) to delegate a sub-task; you don't build them.
+	- Sub-agents — what are they and when do you need one? #card #[[Agents]] #[[2026-06-07]]
+		- A separate run with its OWN context window for a self-contained task. Use only for a big, isolatable fan-out — never a small step (a cold agent re-derives context and costs more).
+	- What two axes govern whether to split work into an agent? #card #[[Agents]] #[[2026-06-07]]
+		- ① context isolation (does it need its own clean context?) ② tool scoping (does it need a restricted tool set?). "Role" agents (researcher/writer) map to neither → anti-pattern.
+	- Why does this RAG need no sub-agents? #card #[[Agents]] #[[2026-06-07]]
+		- The query pipeline is a straight line (embed → retrieve → rerank → generate): nothing to isolate, no tools to scope. Add agents only when the eval forces branching (v2).
+	- What makes the best portfolio corpus, and why? #card #[[Agents]] #[[2026-06-07]]
+		- Financial filings — the answers are numbers, so "correct" is unambiguous, which makes the eval credible to a recruiter.
+	- CLAUDE.md — why, when to add, how it works? #card #[[Agents]] #[[2026-06-07]]
+		- Why: persistent project instructions loaded every session that override default behavior. When: non-obvious rules worth enforcing. How: injected as high-priority context at session start.
+- ## Workflow
+	- Why delete dead code instead of commenting it out? #card #[[Workflow]] #[[2026-06-12]]
+		- Git is your memory; commented code rots (never run or type-checked) and confuses the next reader. A deliberate, used test fixture is different — it has a job.
+	- When should you NOT use a sub-agent? #card #[[Workflow]] #[[2026-06-12]]
+		- For a one-shot small task — a cold agent re-derives context you already have and costs more. (We generated the test PDF inline instead.)
