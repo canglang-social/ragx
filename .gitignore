@@ -11,3 +11,6 @@ tsconfig.tsbuildinfo
 
 # Personal Claude Code tooling, not part of the product
 .claude/
+
+# Personal local notes (e.g. English-learning) — kept on disk, never pushed
+*.local.md
