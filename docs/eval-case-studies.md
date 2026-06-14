@@ -1,8 +1,11 @@
-# Eval case studies: diagnosis → fix (q001–q006)
+# Eval case studies: diagnosis → fix
 
-How each of the first six eval cases was diagnosed and fixed. Each failure was
-isolated using the two-metric design (retrieval hit vs answer accuracy) so the
-cause was always attributable to a single stage, then fixed and re-measured.
+How eval cases were diagnosed and fixed. Each failure was isolated using the
+two-metric design (retrieval hit vs answer accuracy) so the cause was always
+attributable to a single stage, then fixed and re-measured.
+
+Two parts: **q001–q006** are fixed (below); **q007 / q013 / q014** are currently
+open — diagnosed, with the fix identified but not yet shipped (the honest backlog).
 
 | Case | Fact (source) | Failure mode | Root cause | Fix | Commit |
 | --- | --- | --- | --- | --- | --- |
@@ -92,6 +95,58 @@ cause was always attributable to a single stage, then fixed and re-measured.
      dot), so figures are never severed.
   2. Widen retrieval breadth TOP_K 5 → 20, so the rank ~6–20 chunk enters context.
 - **Commits:** `29176bf` (decimal fix), `2ea089a` (TOP_K=20).
+
+---
+
+## Open failures (diagnosed, fix identified, not yet shipped)
+
+Surfaced when the eval grew from 6 → 20 cases (E11). These are the honest backlog —
+each has a clear cause and a planned fix, none of them "reranking" (a reranker can
+only reorder chunks that were already fetched).
+
+| Case | Fact (source) | Failure mode | Root cause | Planned fix |
+| --- | --- | --- | --- | --- |
+| q007 | Berkshire float end-2022 = $164B | retrieval FAIL | phrasing sensitivity | hybrid keyword+vector (B9) |
+| q013 | Berkshire railroad op. earnings 2023 = $7.4B | retrieval FAIL | dense table, semantically thin | hybrid keyword+vector (B9) |
+| q014 | float grew $5B from 2022→2023 | answer FAIL, retrieval PASS | multi-hop arithmetic | agentic decompose/compute (v2) |
+
+### q007 — "…float at the end of **2022**?" → $164 billion
+
+- **Tests:** the *same* sentence that answers q005, queried for the **other year**.
+- **Diagnosis:** retrieval FAIL — and revealingly, the gold chunk is identical to
+  q005's (the sentence "Float was approximately $169 billion at December 31, 2023,
+  $164 billion at December 31, 2022…", which contains *both* figures). q005 ("…2023")
+  retrieves it; q007 ("…2022") does not. The chunk's embedding leans toward the
+  first/most-prominent year, so the "2022" phrasing ranks it out of the top-20.
+- **Why not reranking:** the chunk isn't fetched at all → nothing to reorder.
+- **Planned fix:** **hybrid keyword+vector retrieval (B9)** — exact tokens like
+  "164" / "2022" are precisely what lexical (BM25) search nails where dense vectors
+  blur. This is the same lexical idea that *failed* as a post-hoc reranker, used in
+  the place it actually belongs: widening recall, not re-ranking a fixed shortlist.
+
+### q013 — "…railroad operating earnings in 2023?" → $7.4 billion ($7,415M)
+
+- **Tests:** a number that lives only inside a **dense financial table**.
+- **Diagnosis:** retrieval FAIL — the table row ("Railroad operating earnings 7,415
+  8,603 8,811") is almost all digits with little surrounding prose, so its embedding
+  carries weak semantic signal and doesn't match a natural-language query well.
+  Tables are a known weak spot for pure vector retrieval.
+- **Planned fix:** **hybrid keyword+vector (B9)** (keyword "railroad operating
+  earnings" hits the row directly); longer term, table-aware extraction that turns
+  rows into self-describing sentences at ingest.
+
+### q014 — "By how much did float grow from 2022 to 2023?" → $5 billion
+
+- **Tests:** a **two-step (multi-hop) computation**, not a lookup.
+- **Diagnosis:** retrieval **PASS**, answer **FAIL** — the chunk with *both* numbers
+  ($169B and $164B) reached the generator, but llama3 didn't compute the difference
+  ($169 − $164 = $5B). The facts were present; the *reasoning* step failed. This is a
+  different class of failure from q007/q013 (retrieval) — it's generation/reasoning.
+- **Why this matters:** it's the first concrete signal that the *linear* pipeline has
+  a ceiling — exactly the trigger the roadmap names for **v2 (agentic RAG)**: query
+  decomposition ("get 2023 float", "get 2022 float", "subtract") or a compute/tool
+  step. A cheaper first attempt: prompt the generator to show its arithmetic.
+- **Planned fix:** v2 agentic decomposition / a compute step (see [DESIGN.md](DESIGN.md) roadmap).
 
 ---
 
