@@ -47,6 +47,11 @@ tagged by *kind*, because conflating them is a common mistake:
 - **[HARD]** Don't ship machinery that loses to the baseline on the eval.
 - **[CONV]** A documented negative result is valuable — keep it (behind a flag), with
   the data that killed it.
+- **[CONV]** Match the store to the scale signal — pick the smallest that fits the data.
+  In-memory or `pgvector` (Postgres) for thousands–millions of vectors; a dedicated
+  vector DB (Milvus / Qdrant / Pinecone) only on a measured signal (millions+, high QPS,
+  or features pgvector lacks). Deploying a heavyweight vector DB for thousands is the same
+  over-machinery as adding a framework too early.
 - **[HARD]** Right idea, wrong job: a technique that fails in one role (lexical as a
   *reranker*) can be correct in another (lexical for *recall-widening*).
 

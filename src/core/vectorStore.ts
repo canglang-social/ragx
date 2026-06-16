@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { PgVectorStore } from "./pgVectorStore";
 import type { Chunk, RetrievedChunk } from "./types";
 
 // SEAM 2: VectorStore. Holds vectors, returns the nearest ones for a query.
@@ -7,6 +8,8 @@ import type { Chunk, RetrievedChunk } from "./types";
 export interface VectorStore {
   upsert(entries: StoredVector[]): Promise<void>;
   query(vector: number[], topK: number): Promise<RetrievedChunk[]>;
+  reset(): Promise<void>;
+  close?(): Promise<void>; // release connections (no-op for in-memory)
 }
 
 // A chunk paired with its vector. Passing these as one unit (instead of two
@@ -72,4 +75,15 @@ export class InMemoryVectorStore implements VectorStore {
       .sort((a, b) => b.score - a.score)
       .slice(0, topK);
   }
+}
+
+// Composition-root factory: pick the store from env. Default in-memory (zero-dep,
+// local); `VECTOR_STORE=pg` selects pgvector (the deploy target). The pg client
+// only opens a connection when PgVectorStore is constructed, so the default path
+// touches no database.
+export function makeStore(): VectorStore {
+  if (process.env.VECTOR_STORE === "pg") {
+    return new PgVectorStore();
+  }
+  return new InMemoryVectorStore();
 }

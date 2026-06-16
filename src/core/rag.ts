@@ -1,5 +1,5 @@
 import { MockEmbedder, OllamaEmbedder, type Embedder } from './embedder';
-import { InMemoryVectorStore, type VectorStore } from './vectorStore';
+import { makeStore, type VectorStore } from './vectorStore';
 import { MockGenerator, OllamaGenerator, type Generator } from './generator';
 import { IdentityReranker, LexicalReranker, type Reranker } from './reranker';
 import type { Answer, RetrievedChunk } from './types';
@@ -59,7 +59,7 @@ export function defaultDeps(): RagDeps {
       : new IdentityReranker();
   return {
     embedder,
-    store: new InMemoryVectorStore(),
+    store: makeStore(),
     generator,
     reranker,
     topK: Number(process.env.TOP_K ?? 5),

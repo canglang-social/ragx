@@ -11,10 +11,13 @@
     "ingest:ollama": "EMBEDDER=ollama tsx scripts/ingest.ts",
     "eval": "tsx eval/run-eval.ts",
     "eval:ollama": "EMBEDDER=ollama GENERATOR=ollama TOP_K=20 tsx eval/run-eval.ts",
+    "ingest:pg": "EMBEDDER=ollama VECTOR_STORE=pg tsx scripts/ingest.ts",
+    "eval:pg": "EMBEDDER=ollama GENERATOR=ollama VECTOR_STORE=pg TOP_K=20 tsx eval/run-eval.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "^15.1.6",
+    "postgres": "^3.4.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "unpdf": "^1.6.2"
