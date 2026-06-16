@@ -1,6 +1,6 @@
 import { MockEmbedder, OllamaEmbedder, type Embedder } from './embedder';
 import { makeStore, type VectorStore } from './vectorStore';
-import { MockGenerator, OllamaGenerator, type Generator } from './generator';
+import { MockGenerator, OllamaGenerator, OpenAIGenerator, type Generator } from './generator';
 import { IdentityReranker, LexicalReranker, type Reranker } from './reranker';
 import type { Answer, RetrievedChunk } from './types';
 
@@ -48,7 +48,9 @@ export function defaultDeps(): RagDeps {
   const generator: Generator =
     process.env.GENERATOR === 'ollama'
       ? new OllamaGenerator()
-      : new MockGenerator();
+      : process.env.GENERATOR === 'openai'
+        ? new OpenAIGenerator()
+        : new MockGenerator();
   // Reranker defaults to identity (passthrough). A lexical reranker exists behind
   // RERANKER=lexical, but A/B showed it REGRESSES vs feeding the wide topK at 20
   // (it truncates out gold chunks; keyword overlap isn't discriminative when a

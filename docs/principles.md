@@ -65,6 +65,11 @@ tagged by *kind*, because conflating them is a common mistake:
 - **[HARD]** Fix the root cause, not the symptom (fix the chunker that severed
   decimals; don't paper over the damage downstream).
 - **[HARD]** Verify against the actual data before asserting a diagnosis.
+- **[HARD]** Parse/normalize external data at the boundary (DB / API / file). TS types
+  are erased at runtime — a type annotation is an *unchecked assertion*, not a converter
+  or validator. SQL types ≠ TS types; the driver decides the runtime shape (e.g. pgvector
+  jsonb came back as a string). Never trust the annotation for the shape of data you
+  didn't create in-process.
 
 ## 4. Parameters & tuning
 
