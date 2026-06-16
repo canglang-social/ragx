@@ -19,8 +19,8 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 - [ ] B9. Hybrid keyword+vector retrieval — NOW signal-justified by E11. q007 (float "2022" not retrieved though "2023" is — phrasing sensitivity) and q013 (railroad earnings in a dense numeric table — semantically thin) are both recall misses BM25/keyword would nail. Vector-only retrieval is weak on tables and exact tokens.
 
 ## C. Vector store — deploy-critical
-- [ ] C8. Implement `PgVectorStore` behind the `VectorStore` interface (pgvector on Supabase/Neon).
-- [ ] C9. Table schema + connection config; point `ingest` at it.
+- [x] C8. `PgVectorStore` (postgres.js + pgvector) behind the seam: lazy schema (dim-sized table + HNSW cosine index), batched multi-row upsert, cosine query via `<=>`, SSL auto-on for hosted, jsonb metadata parsed on read. VALIDATED on Neon: eval holds 0.82/0.85, identical to in-memory — the seam swap is provably correct.
+- [x] C9. Schema auto-created on first upsert; connection via `DATABASE_URL`; `makeStore()` factory + `VECTOR_STORE=pg`; `ingest:pg` / `eval:pg` scripts point at it.
 
 ## D. Generation
 - [x] D10. `OllamaGenerator` (llama3) behind the seam: grounded prompt, temp 0, GENERATOR=ollama switch. Grounding works — answered q004 correctly from the table ($37,350M) and honestly said "I don't know" on q005 (no context). Hosted generator for deploy is still G15.
