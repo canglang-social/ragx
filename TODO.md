@@ -13,7 +13,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 
 ## B. Embedding & retrieval
 - [x] B5. Swap `MockEmbedder` → `OllamaEmbedder` (`nomic-embed-text`); proven: answer accuracy 0.67 → 1.00 (q001 fixed). NOTE: nomic vectors are NOT length-normalized, so full cosine (with magnitude division) is required.
-- [ ] B6. Extract a `makeEmbedder()` factory to remove the duplicated embedder-picking ternary (ingest.ts + rag.ts).
+- [x] B6. `makeEmbedder()` factory (in embedder.ts) — removes the duplicated env-ternary from ingest.ts + rag.ts; guarantees ingest and query pick the same embedder.
 - [x] B7. Tried a lexical (keyword+vector) reranker. MEASURED NEGATIVE: it regresses vs feeding the wide retrieval (truncating to 5 drops gold chunks; keyword overlap not discriminative when a phrase repeats across tables). Shelved behind `RERANKER=lexical`. The real win was retrieval breadth: TOP_K 5 → 20 lifted answer 0.67 → 0.83. A cross-encoder reranker stays deferred until recall is high but rank is the proven gap.
 - [x] B8. Fixed the q005 RECALL miss. Diagnosed: "$169B float" ranked 52/1008, diluted inside an 800-char reinsurance-jargon window. Cut chunk size 800 → 350 chars (60 overlap) → it surfaces; answer 0.83 → 1.00 (6/6). ⚠️ 6 single-fact cases overfit small chunks — re-validated under E11 (held up; honest 0.82/0.85 on 20).
 - [ ] B9. Hybrid keyword+vector retrieval — NOW signal-justified by E11. q007 (float "2022" not retrieved though "2023" is — phrasing sensitivity) and q013 (railroad earnings in a dense numeric table — semantically thin) are both recall misses BM25/keyword would nail. Vector-only retrieval is weak on tables and exact tokens.

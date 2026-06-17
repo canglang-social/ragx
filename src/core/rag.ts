@@ -1,4 +1,4 @@
-import { MockEmbedder, OllamaEmbedder, type Embedder } from './embedder';
+import { makeEmbedder, type Embedder } from './embedder';
 import { makeStore, type VectorStore } from './vectorStore';
 import { MockGenerator, OllamaGenerator, OpenAIGenerator, type Generator } from './generator';
 import { IdentityReranker, LexicalReranker, type Reranker } from './reranker';
@@ -41,10 +41,7 @@ export async function answerQuestion(
 // Selects implementations from env, so the same pipeline runs as a zero-dep
 // skeleton (default) or against Ollama. This is the seam doing its job.
 export function defaultDeps(): RagDeps {
-  const embedder: Embedder =
-    process.env.EMBEDDER === 'ollama'
-      ? new OllamaEmbedder()
-      : new MockEmbedder();
+  const embedder = makeEmbedder();
   const generator: Generator =
     process.env.GENERATOR === 'ollama'
       ? new OllamaGenerator()

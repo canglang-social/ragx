@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { extractText, getDocumentProxy } from "unpdf";
-import { MockEmbedder, OllamaEmbedder, type Embedder } from "../src/core/embedder";
+import { makeEmbedder } from "../src/core/embedder";
 import { makeStore } from "../src/core/vectorStore";
 import { splitText } from "../src/core/chunker";
 import type { Chunk } from "../src/core/types";
@@ -46,8 +46,7 @@ async function loadPdfs(dir: string): Promise<Chunk[]> {
 }
 
 async function main(): Promise<void> {
-  const embedder: Embedder =
-    process.env.EMBEDDER === "ollama" ? new OllamaEmbedder() : new MockEmbedder();
+  const embedder = makeEmbedder();
   const store = makeStore();
 
   const chunks = await loadPdfs(PDF_DIR);
