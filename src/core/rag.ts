@@ -1,7 +1,7 @@
 import { makeEmbedder, type Embedder } from './embedder';
 import { makeStore, type VectorStore } from './vectorStore';
 import { MockGenerator, OllamaGenerator, OpenAIGenerator, type Generator } from './generator';
-import { IdentityReranker, LexicalReranker, type Reranker } from './reranker';
+import { CrossEncoderReranker, IdentityReranker, LexicalReranker, type Reranker } from './reranker';
 import type { Answer, RetrievedChunk } from './types';
 
 export interface RagDeps {
@@ -53,9 +53,11 @@ export function defaultDeps(): RagDeps {
   // (it truncates out gold chunks; keyword overlap isn't discriminative when a
   // phrase repeats across subsidiary tables). Kept as a documented negative result.
   const reranker: Reranker =
-    process.env.RERANKER === 'lexical'
-      ? new LexicalReranker()
-      : new IdentityReranker();
+    process.env.RERANKER === 'jina'
+      ? new CrossEncoderReranker()
+      : process.env.RERANKER === 'lexical'
+        ? new LexicalReranker()
+        : new IdentityReranker();
   return {
     embedder,
     store: makeStore(),

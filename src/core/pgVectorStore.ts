@@ -37,10 +37,14 @@ export class PgVectorStore implements VectorStore {
          embedding vector(${dim}) NOT NULL
        )`,
     );
-    await this.sql.unsafe(
-      `CREATE INDEX IF NOT EXISTS chunks_embedding_idx
-         ON chunks USING hnsw (embedding vector_cosine_ops)`,
-    );
+    // pgvector's HNSW index supports ≤2000 dims; above that (e.g. text-embedding-3-large
+    // at 3072) skip it — exact scan is fast enough at this corpus size.
+    if (dim <= 2000) {
+      await this.sql.unsafe(
+        `CREATE INDEX IF NOT EXISTS chunks_embedding_idx
+           ON chunks USING hnsw (embedding vector_cosine_ops)`,
+      );
+    }
     this.ready = true;
   }
 

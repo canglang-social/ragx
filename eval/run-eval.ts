@@ -86,7 +86,9 @@ async function main(): Promise<void> {
   let ctxSize = 0; // chunks actually fed to the generator (post-rerank), for honest labeling
 
   for (const c of cases) {
+    const t0 = Date.now();
     const { answer, retrieved } = await answerQuestion(c.question, deps);
+    const ms = Date.now() - t0;
     ctxSize = Math.max(ctxSize, retrieved.length);
 
     const grounded = c.answer_type !== "absent";
@@ -107,7 +109,7 @@ async function main(): Promise<void> {
 
     const retrievalCol = grounded ? (retrievalHit ? "PASS" : "FAIL") : "n/a ";
     console.log(
-      `${c.id}  retrieval=${retrievalCol}  answer=${answerOk ? "PASS" : "FAIL"}  | ${c.question}`,
+      `${c.id}  retrieval=${retrievalCol}  answer=${answerOk ? "PASS" : "FAIL"}  ${String(ms).padStart(5)}ms  | ${c.question}`,
     );
   }
 

@@ -75,3 +75,54 @@ export class LexicalReranker implements Reranker {
       .map((s) => ({ ...s.chunk, score: s.blended }));
   }
 }
+
+// Cross-encoder reranker (B7, the strong kind). A model reads (query, chunk) TOGETHER
+// and scores relevance — far better than the lexical blend (which regressed). Two-stage:
+// the store retrieves wide by vector (recall), this rescores and keeps the top N.
+// Signal: q008's gold chunk had high recall (rank 77/1000) but ranked out of the fed
+// context — exactly "recall high, rank wrong," the case B7 was reserved for. Free via
+// Jina's /rerank (reuses the Jina key). Validate against the eval; shelve if it regresses.
+export class CrossEncoderReranker implements Reranker {
+  readonly name: string;
+
+  constructor(
+    private model = process.env.RERANK_MODEL ?? "jina-reranker-v2-base-multilingual",
+    private baseUrl = process.env.RERANK_BASE_URL ?? "https://api.jina.ai/v1",
+    private apiKey = process.env.RERANK_API_KEY ?? process.env.EMBED_API_KEY ?? "",
+    private topN = Number(process.env.RERANK_TOP_N ?? 10),
+  ) {
+    this.name = `crossencoder:${this.model}`;
+  }
+
+  async rerank(question: string, chunks: RetrievedChunk[]): Promise<RetrievedChunk[]> {
+    if (chunks.length === 0) return chunks;
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(`${this.baseUrl}/rerank`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          query: question,
+          documents: chunks.map((c) => c.text),
+          top_n: this.topN,
+        }),
+      });
+      if (res.status === 429 && attempt < 5) {
+        const retryAfter = Number(res.headers.get("retry-after"));
+        const waitMs =
+          Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 2 ** attempt * 1000;
+        await new Promise((r) => setTimeout(r, waitMs + 250));
+        continue;
+      }
+      if (!res.ok) {
+        throw new Error(`Cross-encoder rerank failed: ${res.status} ${await res.text()}`);
+      }
+      const json = (await res.json()) as { results: { index: number; relevance_score: number }[] };
+      // Map reranked indices back to chunks, carrying the cross-encoder score.
+      return json.results.map((r) => ({ ...chunks[r.index], score: r.relevance_score }));
+    }
+  }
+}
