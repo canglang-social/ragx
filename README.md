@@ -2,9 +2,11 @@
 
 A Retrieval-Augmented Generation (RAG) system that answers questions about **financial filings** with cited, verifiable answers — and **measures its own quality** with an eval set.
 
+**▶ Live demo: https://ragx-rosy.vercel.app/** &nbsp;·&nbsp; Eval (20 cases): **retrieval 0.94 · answer 0.95**, with proven no-hallucination on out-of-corpus questions.
+
 ## Why this project is built the way it is
 
-- **Eval-driven.** Quality is a number, not a vibe. `npm run eval` reports retrieval hit@k and answer accuracy, so every change is justified by a measured delta.
+- **Eval-driven.** Quality is a number, not a vibe. `pnpm eval` reports retrieval hit@k and answer accuracy, so every change is justified by a measured delta.
 - **Swappable seams.** Embedder / vector store / generator / reranker are interfaces. Switching models or stores is a one-file change, not a rewrite.
 - **Lean by default.** No orchestration framework, no extra services until the eval proves the simpler version fails.
 

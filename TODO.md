@@ -3,7 +3,7 @@
 Granular, churny task list. The stable "why" lives in [docs/DESIGN.md](docs/DESIGN.md).
 v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 
-> **Status:** real-PDF pipeline at **0.83/0.83** on 6 cases (retrieve 20 → identity → llama3, unit-tolerant matching). One open failure: **B8 (q005 recall)**. Deploy path (C8/C9 → G15/G16) is the road to the live URL.
+> **Status: v1 SHIPPED** 🎉 — live at https://ragx-rosy.vercel.app/. Deployed stack (Jina + Groq + pgvector on Vercel/Neon) evals **0.94 retrieval / 0.95 answer** (20 cases, no-hallucination proven). Remaining polish: F14 (UX), D11 (units), E14 (eval guard). Next frontier: v2 agentic (multi-hop).
 
 ## A. Ingestion — real data
 - [x] A1. PDF text extractor via `unpdf`; `loadPdfs(dir)` → one chunk/page with `{sourceDoc, page, company, year}` (company/year from `company-year.pdf` filename). Synthetic 4-page fixture; eval holds 1.00/1.00, no regression.
@@ -37,4 +37,4 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 
 ## G. Deploy — the URL
 - [x] G15. Hosted stack done + validated end-to-end. GENERATOR: `OpenAIGenerator` (Groq llama-3.3-70b free) with 429-retry. EMBEDDER: `OpenAIEmbedder` (Jina jina-embeddings-v3 free) with batching + 429-retry. Both behind the seams, env-switched, via `ingest:hosted` / `eval:hosted` (pgvector). **Deployed eval: retrieval 0.94 / answer 0.95 — beats the local nomic+llama3 stack (0.82/0.85)** because Jina v3 > nomic. Local-in-China needs `NODE_USE_ENV_PROXY=1` + `NO_PROXY=localhost` (Cloudflare 403s undici direct; Vercel's US IP won't).
-- [ ] G16. Configure env vars/secrets on Vercel (Postgres URL, model API keys); deploy; verify the live URL end-to-end.
+- [x] G16. Deployed to Vercel (env vars/secrets: Jina + Groq keys, Neon pooled DATABASE_URL, VECTOR_STORE=pg). Live + query verified end-to-end: https://ragx-rosy.vercel.app/ — **v1 SHIPPED.**
