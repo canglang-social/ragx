@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { answerQuestion, defaultDeps } from "@/core/rag";
 
-// NOTE: defaultDeps() uses InMemoryVectorStore, which reads data/index.json from
-// disk. That works in `next dev` locally after `npm run ingest`, but NOT on
-// Vercel (serverless, no persistent disk). Swap in a PgVectorStore before deploy.
+// Node runtime (not edge): the pg driver needs Node APIs. Deps are env-selected —
+// on Vercel: VECTOR_STORE=pg + hosted embedder/generator; locally: in-memory + Ollama.
+export const runtime = "nodejs";
+
 export async function POST(req: Request): Promise<Response> {
   const { question } = (await req.json()) as { question?: string };
   if (!question) {

@@ -78,12 +78,16 @@ export class InMemoryVectorStore implements VectorStore {
 }
 
 // Composition-root factory: pick the store from env. Default in-memory (zero-dep,
-// local); `VECTOR_STORE=pg` selects pgvector (the deploy target). The pg client
-// only opens a connection when PgVectorStore is constructed, so the default path
-// touches no database.
+// local); `VECTOR_STORE=pg` selects pgvector (the deploy target). The pg store is a
+// module-level singleton so its one connection is reused across requests —
+// serverless isolates persist module state, and a per-request connection would
+// exhaust the pool.
+let pgStore: PgVectorStore | undefined;
+
 export function makeStore(): VectorStore {
   if (process.env.VECTOR_STORE === "pg") {
-    return new PgVectorStore();
+    pgStore ??= new PgVectorStore();
+    return pgStore;
   }
   return new InMemoryVectorStore();
 }
