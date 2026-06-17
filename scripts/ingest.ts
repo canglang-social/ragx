@@ -50,7 +50,7 @@ async function main(): Promise<void> {
   const store = makeStore();
 
   const chunks = await loadPdfs(PDF_DIR);
-  const vectors = await embedder.embed(chunks.map((c) => c.text));
+  const vectors = await embedder.embed(chunks.map((c) => c.text), "document");
   // Zip chunks with their vectors ONCE, here at the boundary — so the store's
   // upsert can't be handed misaligned arrays.
   const entries = chunks.map((chunk, i) => ({ chunk, vector: vectors[i] }));
