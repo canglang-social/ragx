@@ -38,29 +38,29 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap. Also:
 
 Eval set: **20 cases** over a synthetic fixture + a real 152-page Berkshire
 Hathaway 2023 filing — 17 grounded (single-fact, multi-fact, free-form) + 3
-*absent* (answer is in no doc; the system must refuse, not invent). Numeric/
+_absent_ (answer is in no doc; the system must refuse, not invent). Numeric/
 unit-tolerant matching.
 
-| Stack | Retrieval hit@20 | Answer accuracy |
-| --- | --- | --- |
+| Stack                                                                      | Retrieval hit@20 | Answer accuracy  |
+| -------------------------------------------------------------------------- | ---------------- | ---------------- |
 | **Deployed** — Jina `jina-embeddings-v3` + Groq `llama-3.3-70b` + pgvector | **0.94** (16/17) | **0.95** (19/20) |
-| Local dev — `nomic-embed-text` + `llama3`, in-memory | 0.82 (14/17) | 0.85 (17/20) |
+| Local dev — `nomic-embed-text` + `llama3`, in-memory                       | 0.82 (14/17)     | 0.85 (17/20)     |
 
 Reproduce: `pnpm ingest:hosted && pnpm eval:hosted` (deployed stack) or `pnpm ingest:ollama && pnpm eval:ollama` (local).
 
-- ✅ **No hallucination** — all 3 *absent* cases pass: asked about crypto / bitcoin / an employee count not in the filings, the system answers *"I don't know."*
+- ✅ **No hallucination** — all 3 _absent_ cases pass: asked about crypto / bitcoin / an employee count not in the filings, the system answers _"I don't know."_
 - **The stronger hosted embedder (Jina v3) lifted retrieval 0.82 → 0.94**, resolving most of the recall misses the local stack exposed (a fact retrieved for one year-phrasing but not another; a figure buried in a dense table); the larger 70b generator lifted answers to 0.95. One retrieval miss + one answer miss remain.
 - The remaining hard class is **multi-hop reasoning** (e.g. compute a year-over-year difference) — the first concrete signal for agentic/multi-step RAG (v2).
 
 ### How we tuned the pipeline (6-case progression)
 
-| Pipeline | Retrieval hit | Answer accuracy |
-| --- | --- | --- |
-| 800-char chunks, retrieve 5 | 0.67 | 0.67 |
-| 800-char chunks, retrieve 20 | 0.83 | 0.83 |
-| 800-char chunks, retrieve 40 | 0.83 | 0.67 |
-| 800-char chunks, retrieve 20, lexical rerank → 5 | 0.50 | 0.67 |
-| 350-char chunks, retrieve 20 _(shipped)_ | 1.00 | 1.00 |
+| Pipeline                                         | Retrieval hit | Answer accuracy |
+| ------------------------------------------------ | ------------- | --------------- |
+| 800-char chunks, retrieve 5                      | 0.67          | 0.67            |
+| 800-char chunks, retrieve 20                     | 0.83          | 0.83            |
+| 800-char chunks, retrieve 40                     | 0.83          | 0.67            |
+| 800-char chunks, retrieve 20, lexical rerank → 5 | 0.50          | 0.67            |
+| 350-char chunks, retrieve 20 _(shipped)_         | 1.00          | 1.00            |
 
 - **Breadth 5 → 20** lifted both metrics — the net-earnings gold chunk ranks ~6–20 by vector, so a wider fetch put it in front of the generator.
 - **40 hurt answers** — more context = more distractors; the generator was pulled off a correct answer.

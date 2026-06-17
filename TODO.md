@@ -33,7 +33,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 - [ ] E14. Guard E12 against FALSE-POSITIVES. Loosening the matcher traded false-negatives for possible false-positives; we only luck-checked it. Add a deliberately-ambiguous / wrong-but-close case (e.g. a near-miss number) that the matcher MUST still mark wrong, so the tolerance can't silently over-pass.
 
 ## F. Web / UX
-- [ ] F14. Error + loading states in `page.tsx` `ask()`. Optional: stream the answer; render sources nicely.
+- [x] F14. UX polish in `page.tsx`: error + loading states, clickable example questions (incl. one that demos the no-hallucination refusal), cited-answer rendering (answer card + monospace source chips), styling + footer with eval stats. Optional later: stream the answer.
 
 ## G. Deploy — the URL
 - [x] G15. Hosted stack done + validated end-to-end. GENERATOR: `OpenAIGenerator` (Groq llama-3.3-70b free) with 429-retry. EMBEDDER: `OpenAIEmbedder` (Jina jina-embeddings-v3 free) with batching + 429-retry. Both behind the seams, env-switched, via `ingest:hosted` / `eval:hosted` (pgvector). **Deployed eval: retrieval 0.94 / answer 0.95 — beats the local nomic+llama3 stack (0.82/0.85)** because Jina v3 > nomic. Local-in-China needs `NODE_USE_ENV_PROXY=1` + `NO_PROXY=localhost` (Cloudflare 403s undici direct; Vercel's US IP won't).
