@@ -36,18 +36,19 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap. Also:
 
 Eval set: **20 cases** over a synthetic fixture + a real 152-page Berkshire
 Hathaway 2023 filing — 17 grounded (single-fact, multi-fact, free-form) + 3
-*absent* (answer is in no doc; the system must refuse, not invent). Local
-pipeline: `nomic-embed-text` + `llama3`, numeric/unit-tolerant matching.
-Reproduce: `pnpm ingest:ollama && pnpm eval:ollama` (requires Ollama).
+*absent* (answer is in no doc; the system must refuse, not invent). Numeric/
+unit-tolerant matching.
 
-**Current: Retrieval hit@20 = 0.82 (14/17 grounded) · Answer accuracy = 0.85 (17/20).**
+| Stack | Retrieval hit@20 | Answer accuracy |
+| --- | --- | --- |
+| **Deployed** — Jina `jina-embeddings-v3` + Groq `llama-3.3-70b` + pgvector | **0.94** (16/17) | **0.95** (19/20) |
+| Local dev — `nomic-embed-text` + `llama3`, in-memory | 0.82 (14/17) | 0.85 (17/20) |
 
-What a 20-case set exposed that 6 cases hid:
+Reproduce: `pnpm ingest:hosted && pnpm eval:hosted` (deployed stack) or `pnpm ingest:ollama && pnpm eval:ollama` (local).
 
 - ✅ **No hallucination** — all 3 *absent* cases pass: asked about crypto / bitcoin / an employee count not in the filings, the system answers *"I don't know."*
-- ❌ **Table retrieval is weak** (q013): a figure inside a dense numeric table doesn't embed well for a semantic query.
-- ❌ **Phrasing sensitivity** (q007): the same float sentence is retrieved for "…end of 2023" but not "…end of 2022".
-- ❌ **Multi-hop arithmetic** (q014): the generator retrieves both float numbers but doesn't compute the year-over-year difference — the first concrete signal for agentic/multi-step RAG (v2).
+- **The stronger hosted embedder (Jina v3) lifted retrieval 0.82 → 0.94**, resolving most of the recall misses the local stack exposed (a fact retrieved for one year-phrasing but not another; a figure buried in a dense table); the larger 70b generator lifted answers to 0.95. One retrieval miss + one answer miss remain.
+- The remaining hard class is **multi-hop reasoning** (e.g. compute a year-over-year difference) — the first concrete signal for agentic/multi-step RAG (v2).
 
 ### How we tuned the pipeline (6-case progression)
 
