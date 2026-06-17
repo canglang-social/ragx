@@ -13,6 +13,7 @@ network) vs ☁ API (hosted).
 | Embedder | Mode | dim | Generator | Retrieval hit@20 | Answer | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | `nomic-embed-text` | 🖥 local | 768 | llama3 | 0.82 (14/17) | 0.85 | original baseline; smallest model |
+| `nomic-embed-text` + query/doc prefixes | 🖥 local | 768 | llama3 | 0.71 (12/17) | 0.75 | `search_query:`/`search_document:` **REGRESSED** vs symmetric 0.82 — asymmetry hurt as applied (Ollama nomic likely handles prefixes differently than HF). Lever shelved. |
 | `qwen3-embedding:0.6b` | 🖥 local | 1024 | llama3 | 0.88 (15/17) | 0.90 | fast (~5s/case); fixed q008, missed q013 + q014 |
 | `qwen3-embedding:8b` | 🖥 local | 4096 | llama3 | 0.88 (15/17) | 0.90 | MTEB #5, heavy; fixed q008, missed q013 + q017; **still < Jina v3** (likely protocol-handicapped, below) |
 | `jina-embeddings-v3` | ☁ API | 1024 | Groq 70b | **0.94** (16/17) | 0.95 | **shipped / deployed winner**; only miss q008 (equity ranks 77) |
