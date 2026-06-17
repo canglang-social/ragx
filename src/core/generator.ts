@@ -1,4 +1,4 @@
-import type { Answer, Citation, RetrievedChunk } from "./types";
+import type { Answer, Citation, RetrievedChunk } from './types';
 
 // SEAM 3: Generator. Turns retrieved context into a cited answer. The real one
 // (Claude / Ollama LLM) goes behind this interface in v1.
@@ -23,13 +23,16 @@ function dedupeCitations(context: RetrievedChunk[]): Citation[] {
 // No-LLM generator: echoes the top retrieved passage and attaches citations.
 // Lets you measure RETRIEVAL quality in isolation before adding a real model.
 export class MockGenerator implements Generator {
-  readonly name = "mock";
+  readonly name = 'mock';
 
-  async generate(_question: string, context: RetrievedChunk[]): Promise<Answer> {
+  async generate(
+    _question: string,
+    context: RetrievedChunk[],
+  ): Promise<Answer> {
     const top = context[0];
     const text = top
       ? `Based on the retrieved context: "${top.text}"`
-      : "No relevant context was retrieved.";
+      : 'No relevant context was retrieved.';
     return { text, citations: dedupeCitations(context) };
   }
 }
@@ -41,8 +44,8 @@ export class OllamaGenerator implements Generator {
   readonly name: string;
 
   constructor(
-    private model = process.env.GEN_MODEL ?? "llama3",
-    private host = process.env.OLLAMA_HOST ?? "http://localhost:11434",
+    private model = process.env.GEN_MODEL ?? 'llama3',
+    private host = process.env.OLLAMA_HOST ?? 'http://localhost:11434',
   ) {
     this.name = `ollama:${this.model}`;
   }
@@ -52,30 +55,36 @@ export class OllamaGenerator implements Generator {
       return { text: "I don't know.", citations: [] };
     }
     const passages = context
-      .map((c, i) => `[${i + 1}] (${c.metadata.sourceDoc} p${c.metadata.page})\n${c.text}`)
-      .join("\n\n");
+      .map(
+        (c, i) =>
+          `[${i + 1}] (${c.metadata.sourceDoc} p${c.metadata.page})\n${c.text}`,
+      )
+      .join('\n\n');
     const system =
-      "You answer questions about financial filings using ONLY the provided context passages. " +
+      'You answer questions about financial filings using ONLY the provided context passages. ' +
       'Quote the exact figure or fact. If the answer is not in the context, reply exactly "I don\'t know." ' +
-      "Be concise: one sentence, no preamble, no commentary.";
+      'Be concise: one sentence, no preamble, no commentary.';
     const user = `Context:\n${passages}\n\nQuestion: ${question}`;
 
     const res = await fetch(`${this.host}/api/chat`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         model: this.model,
         stream: false,
         options: { temperature: 0 },
         messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
+          { role: 'system', content: system },
+          { role: 'user', content: user },
         ],
       }),
     });
     if (!res.ok) throw new Error(`Ollama chat failed: ${res.status}`);
     const json = (await res.json()) as { message: { content: string } };
-    return { text: json.message.content.trim(), citations: dedupeCitations(context) };
+    return {
+      text: json.message.content.trim(),
+      citations: dedupeCitations(context),
+    };
   }
 }
 
@@ -87,9 +96,9 @@ export class OpenAIGenerator implements Generator {
   readonly name: string;
 
   constructor(
-    private model = process.env.GEN_MODEL ?? "gpt-4o-mini",
-    private baseUrl = process.env.GEN_BASE_URL ?? "https://api.openai.com/v1",
-    private apiKey = process.env.GEN_API_KEY ?? "",
+    private model = process.env.GEN_MODEL ?? 'gpt-4o-mini',
+    private baseUrl = process.env.GEN_BASE_URL ?? 'https://api.openai.com/v1',
+    private apiKey = process.env.GEN_API_KEY ?? '',
   ) {
     this.name = `openai:${this.model}`;
   }
@@ -99,33 +108,58 @@ export class OpenAIGenerator implements Generator {
       return { text: "I don't know.", citations: [] };
     }
     const passages = context
-      .map((c, i) => `[${i + 1}] (${c.metadata.sourceDoc} p${c.metadata.page})\n${c.text}`)
-      .join("\n\n");
+      .map(
+        (c, i) =>
+          `[${i + 1}] (${c.metadata.sourceDoc} p${c.metadata.page})\n${c.text}`,
+      )
+      .join('\n\n');
     const system =
-      "You answer questions about financial filings using ONLY the provided context passages. " +
+      'You answer questions about financial filings using ONLY the provided context passages. ' +
       'Quote the exact figure or fact. If the answer is not in the context, reply exactly "I don\'t know." ' +
-      "Be concise: one sentence, no preamble, no commentary.";
+      'Be concise: one sentence, no preamble, no commentary.';
     const user = `Context:\n${passages}\n\nQuestion: ${question}`;
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        temperature: 0,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      }),
+    const body = JSON.stringify({
+      model: this.model,
+      temperature: 0,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
     });
-    if (!res.ok) {
-      throw new Error(`OpenAI-compatible chat failed: ${res.status} ${await res.text()}`);
+
+    // Retry on 429 (free tiers rate-limit by tokens/min). Honor Retry-After,
+    // else exponential backoff. A few attempts absorbs an eval burst.
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${this.apiKey}`,
+        },
+        body,
+      });
+      if (res.status === 429 && attempt < 5) {
+        const retryAfter = Number(res.headers.get('retry-after'));
+        const waitMs =
+          Number.isFinite(retryAfter) && retryAfter > 0
+            ? retryAfter * 1000
+            : 2 ** attempt * 1000;
+        await new Promise((r) => setTimeout(r, waitMs + 250));
+        continue;
+      }
+      if (!res.ok) {
+        throw new Error(
+          `OpenAI-compatible chat failed: ${res.status} ${await res.text()}`,
+        );
+      }
+      const json = (await res.json()) as {
+        choices: { message: { content: string } }[];
+      };
+      return {
+        text: json.choices[0].message.content.trim(),
+        citations: dedupeCitations(context),
+      };
     }
-    const json = (await res.json()) as { choices: { message: { content: string } }[] };
-    return { text: json.choices[0].message.content.trim(), citations: dedupeCitations(context) };
   }
 }

@@ -36,5 +36,5 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 - [ ] F14. Error + loading states in `page.tsx` `ask()`. Optional: stream the answer; render sources nicely.
 
 ## G. Deploy — the URL
-- [ ] G15. ⚠️ Vercel is serverless and CANNOT run Ollama. The deployed build must use a hosted embedder + hosted generator (e.g. Claude) at query time; local dev keeps Ollama. The four seams make this dual setup painless.
+- [~] G15. Hosted GENERATOR done + validated: `OpenAIGenerator` (any OpenAI-chat provider; Groq llama-3.3-70b free tier) behind the seam, with 429-retry/backoff. eval 0.82 retrieval / **0.90** answer — beat local llama3's 0.85 (bigger model). Local-in-China needs `NODE_USE_ENV_PROXY=1` + `NO_PROXY=localhost` (Cloudflare 403s undici direct; Vercel's US IP won't). REMAINING: hosted EMBEDDER — Groq has no embeddings API. Use hosted nomic (preserves eval + pg index, no re-ingest) or OpenAI embeddings (re-ingest + re-validate).
 - [ ] G16. Configure env vars/secrets on Vercel (Postgres URL, model API keys); deploy; verify the live URL end-to-end.
