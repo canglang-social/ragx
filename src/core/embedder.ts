@@ -34,15 +34,21 @@ export class MockEmbedder implements Embedder {
   }
 }
 
-// Real local embedder. Requires `ollama serve` + `ollama pull nomic-embed-text`.
+// Real local embedder. Requires `ollama serve` + `ollama pull <model>`. The model is
+// env-configurable (EMBED_MODEL) so you can A/B local embedders (nomic, bge-m3,
+// qwen3-embedding, …) for free — see docs/embedder-comparison.md.
 export class OllamaEmbedder implements Embedder {
-  readonly name = "ollama:nomic-embed-text";
-  readonly dim = 768;
+  readonly name: string;
+  readonly dim: number;
 
   constructor(
-    private model = "nomic-embed-text",
+    private model = process.env.EMBED_MODEL ?? "nomic-embed-text",
     private host = process.env.OLLAMA_HOST ?? "http://localhost:11434",
-  ) {}
+    dim = Number(process.env.EMBED_DIM ?? 768), // informational; the store sizes to the real length
+  ) {
+    this.name = `ollama:${this.model}`;
+    this.dim = dim;
+  }
 
   async embed(texts: string[]): Promise<number[][]> {
     const out: number[][] = [];
