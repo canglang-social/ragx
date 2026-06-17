@@ -15,6 +15,7 @@ network) vs ☁ API (hosted).
 | `nomic-embed-text` | 🖥 local | 768 | llama3 | 0.82 (14/17) | 0.85 | original baseline; smallest model |
 | `nomic-embed-text` + query/doc prefixes | 🖥 local | 768 | llama3 | 0.71 (12/17) | 0.75 | `search_query:`/`search_document:` **REGRESSED** vs symmetric 0.82 — asymmetry hurt as applied (Ollama nomic likely handles prefixes differently than HF). Lever shelved. |
 | `qwen3-embedding:0.6b` | 🖥 local | 1024 | llama3 | 0.88 (15/17) | 0.90 | fast (~5s/case); fixed q008, missed q013 + q014 |
+| `qwen3-embedding:0.6b` + query instruction | 🖥 local | 1024 | llama3 | 0.88 (15/17) | 0.90 | qwen's `Instruct: …Query:` on the query — **net-neutral** (fixed q014, broke q017); asymmetry just shuffled misses |
 | `qwen3-embedding:8b` | 🖥 local | 4096 | llama3 | 0.88 (15/17) | 0.90 | MTEB #5, heavy; fixed q008, missed q013 + q017; **still < Jina v3** (likely protocol-handicapped, below) |
 | `jina-embeddings-v3` | ☁ API | 1024 | Groq 70b | **0.94** (16/17) | 0.95 | **shipped / deployed winner**; only miss q008 (equity ranks 77) |
 | `jina-embeddings-v5-text-small` | ☁ API | ? | — | _pending_ | — | free tier throttled — paid / later |
@@ -26,11 +27,11 @@ domain, and it's free + hosted + deployed. The embedder hunt has hit diminishing
 
 - **MTEB rank ≠ your-eval performance.** General-English leaderboard ≠ financial-filing
   retrieval; the eval is the judge, not the board.
-- **Protocol caveat (fairness):** these rows embed query and document **symmetrically,
-  no prefix.** Models that expect *asymmetric* query/doc instructions — nomic
-  (`search_query:`), qwen3 (`Instruct: …`), Jina (`task=retrieval.query`) — run *below*
-  their best here. A fair test needs the `Embedder` interface to distinguish query vs
-  document; deferred (low ROI for models that can't deploy).
+- **Asymmetric query/doc embedding — tested, doesn't help *us*.** We added a query/document
+  `kind` to the seam and tried the proper instructions: nomic + `search_query:`/
+  `search_document:` *regressed* (0.82 → 0.71); qwen3 + its `Instruct: …Query:` format was
+  *net-neutral* (0.88 → 0.88, just shuffled which case missed). The principle is real in
+  the literature; it didn't move this eval. Lever shelved (off by default).
 - **Failures vary by embedder** — q008 / q013 / q014 / q017 move between models. No
   bi-encoder nails all; they're the genuinely hard cases (dense tables, multi-hop).
 
