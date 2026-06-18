@@ -21,8 +21,10 @@ function pct(x: number): string {
   return (x * 100).toFixed(0) + "%";
 }
 function shortConfig(r: EvalRunRow): string {
-  const emb = r.embedder.replace(/^.*[:/]/, "").replace("jina-embeddings-", "jina-");
-  const gen = r.generator.replace(/^.*[:/]/, "");
+  // Strip only the provider prefix (ollama:/openai:), not internal colons —
+  // "ollama:qwen3-embedding:0.6b" must stay "qwen3-embedding:0.6b", not "0.6b".
+  const emb = r.embedder.replace(/^[a-z]+:/, "").replace("jina-embeddings-", "jina-");
+  const gen = r.generator.replace(/^[a-z]+:/, "");
   return `${emb} + ${gen} · k=${r.top_k}`;
 }
 function when(r: EvalRunRow): string {
