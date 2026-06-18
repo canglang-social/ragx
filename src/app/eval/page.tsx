@@ -95,6 +95,9 @@ export default async function EvalPage({ searchParams }: { searchParams: Promise
         with a ✗ means good retrieval but a wrong answer; a red cell with a ✓ usually means the
         model answered from parametric memory, not the document.
       </p>
+      <p style={{ margin: "0 0 12px" }}>
+        <a href="/eval/timeline">View as timeline →</a> — the runs in chronological order with the story and deltas.
+      </p>
 
       {error && <p style={{ color: "#cf222e" }}>Could not load runs: {error}</p>}
       {!error && allRuns.length === 0 && (
