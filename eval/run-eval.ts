@@ -6,6 +6,18 @@ import { answerQuestion, defaultDeps } from "../src/core/rag";
 // points at its cause: retrieval hit@k measures the retriever; answer accuracy
 // measures the generator GIVEN good retrieval.
 
+// A single grounding location: the fact lives in a chunk of this doc containing
+// this substring. source_page PINS the page when the substring is non-distinctive
+// (e.g. Berkshire "operating earnings" recurs, so the page disambiguates which
+// chunk is gold). For big filings a headline figure repeats across many pages
+// (JPMorgan net income is on p3/85/101/205) and any of them grounds the answer —
+// there source_page is null and we match on the distinctive number alone.
+interface GoldChunk {
+  source_doc: string;
+  source_page: number | null;
+  contains: string;
+}
+
 interface EvalCase {
   id: string;
   question: string;
@@ -14,6 +26,19 @@ interface EvalCase {
   source_doc: string | null; // null for absent (answer is not in any doc)
   source_page: number | null;
   gold_chunk_contains: string;
+  // Cross-document cases need MULTIPLE gold chunks (e.g. comparing two filings):
+  // the answer isn't grounded unless ALL of them were retrieved. When present this
+  // supersedes the single source_doc/source_page/gold_chunk_contains fields above.
+  gold_chunks?: GoldChunk[];
+}
+
+// Normalize a case to its required gold chunks. Single-source cases (the common
+// kind) project to a one-element list, so the scorer has one code path.
+function goldChunksOf(c: EvalCase): GoldChunk[] {
+  if (c.gold_chunks?.length) return c.gold_chunks;
+  if (c.source_doc)
+    return [{ source_doc: c.source_doc, source_page: c.source_page, contains: c.gold_chunk_contains }];
+  return [];
 }
 
 // --- Answer matching (E12) -------------------------------------------------
@@ -85,19 +110,46 @@ async function main(): Promise<void> {
   let correct = 0;
   let ctxSize = 0; // chunks actually fed to the generator (post-rerank), for honest labeling
 
+  let errored = 0; // cases a transient failure (e.g. a flaky hosted API) knocked out
+
   for (const c of cases) {
     const t0 = Date.now();
-    const { answer, retrieved } = await answerQuestion(c.question, deps);
+    // One transient network failure (hosted generator drops a connection) must not
+    // discard the whole run. Retry once, then record the case as errored and keep
+    // going — a partial table beats no table.
+    let result: Awaited<ReturnType<typeof answerQuestion>> | null = null;
+    for (let attempt = 0; attempt < 2 && !result; attempt++) {
+      try {
+        result = await answerQuestion(c.question, deps);
+      } catch (err) {
+        if (attempt === 1) {
+          errored++;
+          console.log(`${c.id}  retrieval=ERR   answer=ERR   ${String(Date.now() - t0).padStart(5)}ms  | ${c.question}  (${(err as Error).message.slice(0, 60)})`);
+        }
+      }
+    }
+    if (!result) continue;
+    const { answer, retrieved } = result;
     const ms = Date.now() - t0;
     ctxSize = Math.max(ctxSize, retrieved.length);
 
     const grounded = c.answer_type !== "absent";
+    const golds = goldChunksOf(c);
+    // A grounded case is retrieved iff EVERY required gold chunk is in context.
+    // Match on sourceDoc AND page (not page alone): across a multi-filing corpus
+    // page 3 of Costco and page 3 of JPMorgan collide, so page-only would score a
+    // Costco question a hit on a JPMorgan chunk. For cross-doc cases all golds
+    // must be present — a comparison isn't grounded if only one figure was found.
     const retrievalHit =
       grounded &&
-      retrieved.some(
-        (r) =>
-          r.metadata.page === c.source_page &&
-          r.text.toLowerCase().includes(c.gold_chunk_contains.toLowerCase()),
+      golds.length > 0 &&
+      golds.every((g) =>
+        retrieved.some(
+          (r) =>
+            r.metadata.sourceDoc === g.source_doc &&
+            (g.source_page == null || r.metadata.page === g.source_page) &&
+            r.text.toLowerCase().includes(g.contains.toLowerCase()),
+        ),
       );
     const answerOk = answerMatches(c, answer.text);
 
@@ -115,7 +167,7 @@ async function main(): Promise<void> {
 
   const n = cases.length;
   console.log("\n--- Eval summary ---");
-  console.log(`Cases:              ${n}  (${retrievalTotal} grounded, ${n - retrievalTotal} absent)`);
+  console.log(`Cases:              ${n}  (${retrievalTotal} grounded, ${n - retrievalTotal} absent)${errored ? `  [⚠ ${errored} errored: excluded from retrieval denom, count as answer misses — re-run for a clean number]` : ""}`);
   console.log(`Pipeline:           retrieve ${topK} → ${deps.reranker?.name ?? "identity"} → ${deps.generator.name}`);
   console.log(`Retrieval hit@${ctxSize}:     ${(hits / retrievalTotal).toFixed(2)}  (${hits}/${retrievalTotal})  (gold in generator context, grounded only)`);
   console.log(`Answer accuracy:    ${(correct / n).toFixed(2)}  (${correct}/${n})`);

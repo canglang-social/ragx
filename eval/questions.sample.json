@@ -214,5 +214,271 @@
     "source_doc": "berkshire-2023.pdf",
     "source_page": 82,
     "gold_chunk_contains": "Net earnings attributable to Berkshire shareholders"
+  },
+  {
+    "id": "q025",
+    "question": "What was JPMorgan Chase's total net revenue in 2023?",
+    "expected_answer": "$158.1 billion",
+    "answer_type": "numerical",
+    "source_doc": "jpmorgan-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "Total net revenue $ 158,104"
+  },
+  {
+    "id": "q026",
+    "question": "What was JPMorgan Chase's net income in 2023?",
+    "expected_answer": "$49.6 billion",
+    "answer_type": "numerical",
+    "source_doc": "jpmorgan-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "Net income $ 49,552"
+  },
+  {
+    "id": "q027",
+    "question": "What were JPMorgan Chase's total assets at the end of 2023?",
+    "expected_answer": "$3.875 trillion",
+    "answer_type": "numerical",
+    "source_doc": "jpmorgan-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "Total assets 3,875,393"
+  },
+  {
+    "id": "q028",
+    "question": "What was JPMorgan Chase's CET1 capital ratio in 2023?",
+    "expected_answer": "15.0%",
+    "answer_type": "numerical",
+    "source_doc": "jpmorgan-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "Common equity Tier 1 capital ratio"
+  },
+  {
+    "id": "q029",
+    "question": "What were JPMorgan Chase's cash dividends declared per share in 2023?",
+    "expected_answer": "$4.10",
+    "answer_type": "numerical",
+    "source_doc": "jpmorgan-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "Cash dividends declared per share 4.10"
+  },
+  {
+    "id": "q030",
+    "question": "What was Microsoft's total revenue in fiscal 2023?",
+    "expected_answer": "$211.9 billion",
+    "answer_type": "numerical",
+    "source_doc": "microsoft-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "211,915"
+  },
+  {
+    "id": "q031",
+    "question": "What was Microsoft's net income in fiscal 2023?",
+    "expected_answer": "$72.4 billion",
+    "answer_type": "numerical",
+    "source_doc": "microsoft-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "72,361"
+  },
+  {
+    "id": "q032",
+    "question": "What was Microsoft's operating income in fiscal 2023?",
+    "expected_answer": "$88.5 billion",
+    "answer_type": "numerical",
+    "source_doc": "microsoft-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "88,523"
+  },
+  {
+    "id": "q033",
+    "question": "What was Microsoft's diluted earnings per share in fiscal 2023?",
+    "expected_answer": "$9.68",
+    "answer_type": "numerical",
+    "source_doc": "microsoft-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "9.68"
+  },
+  {
+    "id": "q034",
+    "question": "What were Costco's net sales in fiscal 2023?",
+    "expected_answer": "$237.7 billion",
+    "answer_type": "numerical",
+    "source_doc": "costco-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "237.7 billion"
+  },
+  {
+    "id": "q035",
+    "question": "What was Costco's total revenue in fiscal 2023?",
+    "expected_answer": "$242.3 billion",
+    "answer_type": "numerical",
+    "source_doc": "costco-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "242,290"
+  },
+  {
+    "id": "q036",
+    "question": "What was Costco's net income in fiscal 2023?",
+    "expected_answer": "$6.3 billion",
+    "answer_type": "numerical",
+    "source_doc": "costco-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "Net income was $6.3 billion"
+  },
+  {
+    "id": "q037",
+    "question": "How much did Costco earn from membership fees in fiscal 2023?",
+    "expected_answer": "$4.6 billion",
+    "answer_type": "numerical",
+    "source_doc": "costco-2023.pdf",
+    "source_page": null,
+    "gold_chunk_contains": "membership fees increased 8% to $4.6 billion"
+  },
+  {
+    "id": "q038",
+    "question": "Which company had higher net income in 2023, Microsoft or JPMorgan Chase?",
+    "expected_answer": "Microsoft",
+    "answer_type": "freeform",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": "",
+    "gold_chunks": [
+      {
+        "source_doc": "microsoft-2023.pdf",
+        "source_page": null,
+        "contains": "72,361"
+      },
+      {
+        "source_doc": "jpmorgan-2023.pdf",
+        "source_page": null,
+        "contains": "Net income $ 49,552"
+      }
+    ]
+  },
+  {
+    "id": "q039",
+    "question": "Which company had higher total revenue in 2023, Costco or Microsoft?",
+    "expected_answer": "Costco",
+    "answer_type": "freeform",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": "",
+    "gold_chunks": [
+      {
+        "source_doc": "costco-2023.pdf",
+        "source_page": null,
+        "contains": "242,290"
+      },
+      {
+        "source_doc": "microsoft-2023.pdf",
+        "source_page": null,
+        "contains": "211,915"
+      }
+    ]
+  },
+  {
+    "id": "q040",
+    "question": "How much higher was Microsoft's net income than JPMorgan Chase's in 2023?",
+    "expected_answer": "$22.8 billion",
+    "answer_type": "numerical",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": "",
+    "gold_chunks": [
+      {
+        "source_doc": "microsoft-2023.pdf",
+        "source_page": null,
+        "contains": "72,361"
+      },
+      {
+        "source_doc": "jpmorgan-2023.pdf",
+        "source_page": null,
+        "contains": "Net income $ 49,552"
+      }
+    ]
+  },
+  {
+    "id": "q041",
+    "question": "How much greater was Costco's total revenue than Microsoft's in 2023?",
+    "expected_answer": "$30.4 billion",
+    "answer_type": "numerical",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": "",
+    "gold_chunks": [
+      {
+        "source_doc": "costco-2023.pdf",
+        "source_page": null,
+        "contains": "242,290"
+      },
+      {
+        "source_doc": "microsoft-2023.pdf",
+        "source_page": null,
+        "contains": "211,915"
+      }
+    ]
+  },
+  {
+    "id": "q042",
+    "question": "What was the combined net income of Microsoft and JPMorgan Chase in 2023?",
+    "expected_answer": "$121.9 billion",
+    "answer_type": "numerical",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": "",
+    "gold_chunks": [
+      {
+        "source_doc": "microsoft-2023.pdf",
+        "source_page": null,
+        "contains": "72,361"
+      },
+      {
+        "source_doc": "jpmorgan-2023.pdf",
+        "source_page": null,
+        "contains": "Net income $ 49,552"
+      }
+    ]
+  },
+  {
+    "id": "q043",
+    "question": "Which had the highest net income in 2023: JPMorgan Chase, Microsoft, or Costco?",
+    "expected_answer": "Microsoft",
+    "answer_type": "freeform",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": "",
+    "gold_chunks": [
+      {
+        "source_doc": "jpmorgan-2023.pdf",
+        "source_page": null,
+        "contains": "Net income $ 49,552"
+      },
+      {
+        "source_doc": "microsoft-2023.pdf",
+        "source_page": null,
+        "contains": "72,361"
+      },
+      {
+        "source_doc": "costco-2023.pdf",
+        "source_page": null,
+        "contains": "Net income was $6.3 billion"
+      }
+    ]
+  },
+  {
+    "id": "q044",
+    "question": "How many membership warehouses does Microsoft operate?",
+    "expected_answer": "I don't know",
+    "answer_type": "absent",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": ""
+  },
+  {
+    "id": "q045",
+    "question": "What was Tesla's net income in 2023?",
+    "expected_answer": "I don't know",
+    "answer_type": "absent",
+    "source_doc": null,
+    "source_page": null,
+    "gold_chunk_contains": ""
   }
 ]
