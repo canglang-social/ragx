@@ -101,7 +101,20 @@ function answerMatches(c: EvalCase, answerText: string): boolean {
 
 async function main(): Promise<void> {
   const file = path.join(process.cwd(), "eval", "questions.sample.json");
-  const cases: EvalCase[] = JSON.parse(await readFile(file, "utf8"));
+  const all: EvalCase[] = JSON.parse(await readFile(file, "utf8"));
+
+  // Subset selection, so a slow/paid API isn't burned re-running stable cases
+  // every iteration. EVAL_ONLY=q025,q038 picks exact ids; EVAL_FILTER=q0(3|4) is a
+  // regex over ids. Either narrows to e.g. just the cross-doc cases under work.
+  const only = process.env.EVAL_ONLY?.split(",").map((s) => s.trim()).filter(Boolean);
+  const filterRe = process.env.EVAL_FILTER ? new RegExp(process.env.EVAL_FILTER) : null;
+  const cases = all.filter(
+    (c) => (!only?.length || only.includes(c.id)) && (!filterRe || filterRe.test(c.id)),
+  );
+  if (cases.length !== all.length) {
+    console.log(`Subset: ${cases.length}/${all.length} cases (${cases.map((c) => c.id).join(",")})\n`);
+  }
+
   const deps = defaultDeps();
   const topK = deps.topK ?? 5;
 
