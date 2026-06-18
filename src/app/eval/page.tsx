@@ -198,9 +198,11 @@ export default async function EvalPage({ searchParams }: { searchParams: Promise
                   {caseIds.map((id) => (
                     <th
                       key={id}
-                      style={{ padding: "2px 1px", writingMode: "vertical-rl", height: 48, fontWeight: 400, color: "#57606a" }}
+                      style={{ padding: "2px 1px", writingMode: "vertical-rl", height: 48, fontWeight: 400 }}
                     >
-                      {id}
+                      <a href={`/eval/q/${id}`} style={{ color: "#57606a", textDecoration: "none" }}>
+                        {id}
+                      </a>
                     </th>
                   ))}
                 </tr>

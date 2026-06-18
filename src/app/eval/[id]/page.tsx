@@ -142,7 +142,9 @@ export default async function RunDetail({
           <tbody>
             {failures.map((c) => (
               <tr key={c.id} style={{ borderBottom: "1px solid #eaeef2", verticalAlign: "top" }}>
-                <td style={{ padding: "4px 8px", fontFamily: "monospace" }}>{c.id}</td>
+                <td style={{ padding: "4px 8px", fontFamily: "monospace" }}>
+                  <a href={`/eval/q/${c.id}`} style={{ color: "#0969da", textDecoration: "none" }}>{c.id}</a>
+                </td>
                 <td style={{ padding: "4px 8px" }}>{QMETA.get(c.id)?.question ?? "—"}</td>
                 <td style={{ padding: "4px 8px", color: c.retrieval === "PASS" ? "#1a7f37" : "#cf222e" }}>{c.retrieval}</td>
                 <td style={{ padding: "4px 8px", color: c.answer ? "#1a7f37" : "#cf222e" }}>{c.answer ? "PASS" : "FAIL"}</td>
@@ -173,7 +175,14 @@ function DeltaLine({ label, ids, good }: { label: string; ids: string[]; good?: 
       <strong style={{ color: good ? "#1a7f37" : "#cf222e" }}>
         {good ? "✓" : "⚠"} {label} ({ids.length}):
       </strong>{" "}
-      <span style={{ fontFamily: "monospace" }}>{ids.sort().join(", ")}</span>
+      <span style={{ fontFamily: "monospace" }}>
+        {ids.sort().map((id, i) => (
+          <span key={id}>
+            {i > 0 ? ", " : ""}
+            <a href={`/eval/q/${id}`} style={{ color: "#0969da", textDecoration: "none" }}>{id}</a>
+          </span>
+        ))}
+      </span>
     </li>
   );
 }
