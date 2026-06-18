@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
+import { execSync } from "node:child_process";
 import path from "node:path";
 import { answerQuestion, defaultDeps } from "../src/core/rag";
+import { logRun, type EvalCaseResult } from "../src/core/evalLog";
 
 // The executable spec. Reports TWO numbers, deliberately separated so a failure
 // points at its cause: retrieval hit@k measures the retriever; answer accuracy
@@ -124,6 +126,7 @@ async function main(): Promise<void> {
   let ctxSize = 0; // chunks actually fed to the generator (post-rerank), for honest labeling
 
   let errored = 0; // cases a transient failure (e.g. a flaky hosted API) knocked out
+  const perCase: EvalCaseResult[] = [];
 
   for (const c of cases) {
     const t0 = Date.now();
@@ -137,6 +140,7 @@ async function main(): Promise<void> {
       } catch (err) {
         if (attempt === 1) {
           errored++;
+          perCase.push({ id: c.id, retrieval: "ERR", answer: false, ms: Date.now() - t0 });
           console.log(`${c.id}  retrieval=ERR   answer=ERR   ${String(Date.now() - t0).padStart(5)}ms  | ${c.question}  (${(err as Error).message.slice(0, 60)})`);
         }
       }
@@ -173,6 +177,7 @@ async function main(): Promise<void> {
     if (answerOk) correct++;
 
     const retrievalCol = grounded ? (retrievalHit ? "PASS" : "FAIL") : "n/a ";
+    perCase.push({ id: c.id, retrieval: grounded ? (retrievalHit ? "PASS" : "FAIL") : "n/a", answer: answerOk, ms });
     console.log(
       `${c.id}  retrieval=${retrievalCol}  answer=${answerOk ? "PASS" : "FAIL"}  ${String(ms).padStart(5)}ms  | ${c.question}`,
     );
@@ -184,6 +189,36 @@ async function main(): Promise<void> {
   console.log(`Pipeline:           retrieve ${topK} → ${deps.reranker?.name ?? "identity"} → ${deps.generator.name}`);
   console.log(`Retrieval hit@${ctxSize}:     ${(hits / retrievalTotal).toFixed(2)}  (${hits}/${retrievalTotal})  (gold in generator context, grounded only)`);
   console.log(`Answer accuracy:    ${(correct / n).toFixed(2)}  (${correct}/${n})`);
+
+  // Opt-in (EVAL_LOG=1): persist this run to the eval_runs table so /eval can show
+  // the per-case × per-config history. Opt-in so smoke subsets don't pollute it.
+  if (process.env.EVAL_LOG) {
+    let gitSha = "unknown";
+    try {
+      gitSha = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+        .toString()
+        .trim();
+    } catch {
+      /* not a git repo — leave "unknown" */
+    }
+    await logRun({
+      git_sha: gitSha,
+      embedder: deps.embedder.name,
+      generator: deps.generator.name,
+      reranker: deps.reranker?.name ?? "identity",
+      top_k: topK,
+      chunk_chars: process.env.CHUNK_CHARS ? Number(process.env.CHUNK_CHARS) : null,
+      n,
+      grounded: retrievalTotal,
+      retrieval_hit: retrievalTotal ? Number((hits / retrievalTotal).toFixed(4)) : 0,
+      answer_acc: Number((correct / n).toFixed(4)),
+      errored,
+      per_case: perCase,
+      note: process.env.EVAL_NOTE || null,
+      label: process.env.EVAL_LABEL || null,
+    });
+    console.log(`\nLogged run to eval_runs (git ${gitSha}).`);
+  }
 
   await deps.store.close?.();
 }

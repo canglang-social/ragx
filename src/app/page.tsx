@@ -111,7 +111,10 @@ export default function Home() {
       )}
 
       <footer style={styles.footer}>
-        RAG over financial filings · retrieval 0.94 / answer 0.95 on a 20-case eval
+        RAG over financial filings · retrieval 0.94 / answer 0.95 on a 20-case eval ·{" "}
+        <a href="/eval" style={styles.evalLink}>
+          see the eval dashboard →
+        </a>
       </footer>
     </main>
   );
@@ -189,4 +192,5 @@ const styles: Record<string, CSSProperties> = {
     padding: "4px 8px",
   },
   footer: { marginTop: 40, color: "#9ca3af", fontSize: 13 },
+  evalLink: { color: "#2563eb", textDecoration: "none" },
 };
