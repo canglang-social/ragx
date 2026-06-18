@@ -51,7 +51,7 @@ Reproduce: `pnpm ingest:hosted && pnpm eval:hosted` (deployed stack) or `pnpm in
 
 - ✅ **No hallucination** — all 3 _absent_ cases pass: asked about crypto / bitcoin / an employee count not in the filings, the system answers _"I don't know."_
 - **The stronger hosted embedder (Jina v3) lifted retrieval 0.82 → 0.94**, resolving most of the recall misses the local stack exposed (a fact retrieved for one year-phrasing but not another; a figure buried in a dense table); the larger 70b generator lifted answers to 0.95. One retrieval miss + one answer miss remain.
-- The remaining hard class is **multi-hop reasoning** (e.g. compute a year-over-year difference) — the first concrete signal for agentic/multi-step RAG (v2).
+- **Multi-hop reasoning is NOT the ceiling — and this is the key finding.** A probe (q021–q024) showed the linear pipeline + a capable generator (Groq 70b) computes same-chunk *and* cross-page differences correctly (e.g. 2023 net earnings − operating earnings, facts on pages 82 and 6). The multi-hop *failures* were retrieval misses, not reasoning. So **agentic/v2 is not justified by the eval** — I probed for the signal and the data said the linear pipeline suffices. The one genuinely hard case left (q013) is **dense-table retrieval** — a retrieval problem (hybrid / table-aware ingest), not an agent one.
 
 ### How we tuned the pipeline (6-case progression)
 
