@@ -178,5 +178,41 @@
     "source_doc": null,
     "source_page": null,
     "gold_chunk_contains": ""
+  },
+  {
+    "id": "q021",
+    "question": "By how much did Berkshire Hathaway's insurance float grow from 2021 to 2023?",
+    "expected_answer": "$22 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 66,
+    "gold_chunk_contains": "Float was approximately"
+  },
+  {
+    "id": "q022",
+    "question": "How much did Berkshire Hathaway's operating earnings grow from 2021 to 2023?",
+    "expected_answer": "$9.8 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 6,
+    "gold_chunk_contains": "operating earnings"
+  },
+  {
+    "id": "q023",
+    "question": "How much did Berkshire Hathaway's operating earnings grow from 2021 to 2022?",
+    "expected_answer": "$3.3 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 6,
+    "gold_chunk_contains": "operating earnings"
+  },
+  {
+    "id": "q024",
+    "question": "How much larger were Berkshire Hathaway's 2023 net earnings than its 2023 operating earnings?",
+    "expected_answer": "$58.8 billion",
+    "answer_type": "numerical",
+    "source_doc": "berkshire-2023.pdf",
+    "source_page": 82,
+    "gold_chunk_contains": "Net earnings attributable to Berkshire shareholders"
   }
 ]
