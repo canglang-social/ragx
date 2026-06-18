@@ -1,10 +1,15 @@
 // SEAM 1: Embedder. Turns text into vectors. Depend on this interface, not on
 // a vendor, so swapping mock -> Ollama -> hosted is a one-line change.
 
+// Retrieval is asymmetric: a question and the passage that answers it are worded
+// differently, so embedders can apply a per-side prefix/task. `kind` tells the embedder
+// which side it's embedding — ingest passes "document", the query path passes "query".
+export type EmbedKind = "query" | "document";
+
 export interface Embedder {
   readonly name: string;
   readonly dim: number;
-  embed(texts: string[]): Promise<number[][]>;
+  embed(texts: string[], kind?: EmbedKind): Promise<number[][]>;
 }
 
 // Deterministic, dependency-free embedder. Lets the whole skeleton run with zero
@@ -18,8 +23,8 @@ export class MockEmbedder implements Embedder {
     this.dim = dim;
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
-    return texts.map((t) => this.embedOne(t));
+  async embed(texts: string[], _kind: EmbedKind = "document"): Promise<number[][]> {
+    return texts.map((t) => this.embedOne(t)); // mock has no query/document asymmetry
   }
 
   private embedOne(text: string): number[] {
@@ -34,23 +39,33 @@ export class MockEmbedder implements Embedder {
   }
 }
 
-// Real local embedder. Requires `ollama serve` + `ollama pull nomic-embed-text`.
+// Real local embedder. Requires `ollama serve` + `ollama pull <model>`. The model is
+// env-configurable (EMBED_MODEL) so you can A/B local embedders (nomic, bge-m3,
+// qwen3-embedding, …) for free — see docs/embedder-comparison.md.
 export class OllamaEmbedder implements Embedder {
-  readonly name = "ollama:nomic-embed-text";
-  readonly dim = 768;
+  readonly name: string;
+  readonly dim: number;
 
   constructor(
-    private model = "nomic-embed-text",
+    private model = process.env.EMBED_MODEL ?? "nomic-embed-text",
     private host = process.env.OLLAMA_HOST ?? "http://localhost:11434",
-  ) {}
+    dim = Number(process.env.EMBED_DIM ?? 768), // informational; the store sizes to the real length
+  ) {
+    this.name = `ollama:${this.model}`;
+    this.dim = dim;
+  }
 
-  async embed(texts: string[]): Promise<number[][]> {
+  async embed(texts: string[], kind: EmbedKind = "document"): Promise<number[][]> {
+    // Per-side prefix, off by default. For nomic set EMBED_QUERY_PREFIX="search_query: "
+    // and EMBED_DOC_PREFIX="search_document: ".
+    const prefix =
+      kind === "query" ? (process.env.EMBED_QUERY_PREFIX ?? "") : (process.env.EMBED_DOC_PREFIX ?? "");
     const out: number[][] = [];
-    for (const prompt of texts) {
+    for (const text of texts) {
       const res = await fetch(`${this.host}/api/embeddings`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ model: this.model, prompt }),
+        body: JSON.stringify({ model: this.model, prompt: `${prefix}${text}` }),
       });
       if (!res.ok) throw new Error(`Ollama embeddings failed: ${res.status}`);
       const json = (await res.json()) as { embedding: number[] };
@@ -78,16 +93,19 @@ export class OpenAIEmbedder implements Embedder {
     this.dim = dim;
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
+  async embed(texts: string[], kind: EmbedKind = "document"): Promise<number[][]> {
+    // Per-side task, off by default. For Jina set EMBED_QUERY_TASK="retrieval.query"
+    // and EMBED_DOC_TASK="retrieval.passage". (Plain OpenAI embeddings need no task.)
+    const task = kind === "query" ? process.env.EMBED_QUERY_TASK : process.env.EMBED_DOC_TASK;
     const out: number[][] = [];
     const BATCH = 96; // batch inputs per request to cut round-trips on ingest
     for (let i = 0; i < texts.length; i += BATCH) {
-      out.push(...(await this.embedBatch(texts.slice(i, i + BATCH))));
+      out.push(...(await this.embedBatch(texts.slice(i, i + BATCH), task)));
     }
     return out;
   }
 
-  private async embedBatch(input: string[]): Promise<number[][]> {
+  private async embedBatch(input: string[], task?: string): Promise<number[][]> {
     for (let attempt = 0; ; attempt++) {
       const res = await fetch(`${this.baseUrl}/embeddings`, {
         method: "POST",
@@ -95,7 +113,7 @@ export class OpenAIEmbedder implements Embedder {
           "content-type": "application/json",
           authorization: `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({ model: this.model, input }),
+        body: JSON.stringify({ model: this.model, input, ...(task ? { task } : {}) }),
       });
       if (res.status === 429 && attempt < 5) {
         const retryAfter = Number(res.headers.get("retry-after"));

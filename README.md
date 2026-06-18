@@ -2,7 +2,7 @@
 
 A Retrieval-Augmented Generation (RAG) system that answers questions about **financial filings** with cited, verifiable answers — and **measures its own quality** with an eval set.
 
-**▶ Live demo: https://ragx-rosy.vercel.app/** &nbsp;·&nbsp; Eval (20 cases): **retrieval 0.94 · answer 0.95**, with proven no-hallucination on out-of-corpus questions.
+**▶ Live demo: https://ragx-rosy.vercel.app/** &nbsp;·&nbsp; Eval (20 cases): **retrieval 0.94 · answer 0.95**, with proven no-hallucination on out-of-corpus questions. &nbsp;·&nbsp; **[Live eval dashboard →](https://ragx-rosy.vercel.app/eval)**
 
 ## Why this project is built the way it is
 
@@ -31,26 +31,30 @@ Query:      question -> Embedder -> VectorStore.query -> Reranker -> Generator -
 ```
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap. Also:
-[principles.md](docs/principles.md) (the reasoning rules, tagged hard/convention/project) and
-[eval-case-studies.md](docs/eval-case-studies.md) (per-case diagnosis → fix).
+[principles.md](docs/principles.md) (the reasoning rules, tagged hard/convention/project),
+[eval-case-studies.md](docs/eval-case-studies.md) (per-case diagnosis → fix), and
+[embedder-comparison.md](docs/embedder-comparison.md) (eval-driven embedder selection).
 
 ## Eval results
 
-Eval set: **20 cases** over a synthetic fixture + a real 152-page Berkshire
-Hathaway 2023 filing — 17 grounded (single-fact, multi-fact, free-form) + 3
-_absent_ (answer is in no doc; the system must refuse, not invent). Numeric/
-unit-tolerant matching.
+The **deployed demo's** eval: **20 cases** over a synthetic fixture + a real
+152-page Berkshire Hathaway 2023 filing — 17 grounded (single-fact, multi-fact,
+free-form) + 3 _absent_ (answer is in no doc; the system must refuse, not invent).
+Numeric/unit-tolerant matching. (A larger **45-case, four-filing stress test** —
+which is what surfaced the cross-document limit and the v2 decision — is described
+in the bullets below and browsable at [`/eval`](https://ragx-rosy.vercel.app/eval).)
 
 | Stack                                                                      | Retrieval hit@20 | Answer accuracy  |
 | -------------------------------------------------------------------------- | ---------------- | ---------------- |
 | **Deployed** — Jina `jina-embeddings-v3` + Groq `llama-3.3-70b` + pgvector | **0.94** (16/17) | **0.95** (19/20) |
 | Local dev — `nomic-embed-text` + `llama3`, in-memory                       | 0.82 (14/17)     | 0.85 (17/20)     |
 
-Reproduce: `pnpm ingest:hosted && pnpm eval:hosted` (deployed stack) or `pnpm ingest:ollama && pnpm eval:ollama` (local).
+Reproduce: `pnpm ingest:hosted && pnpm eval:hosted` (deployed stack) or `pnpm ingest:ollama && pnpm eval:ollama` (local). For the four-filing stress test, add the other PDFs from [SOURCES.md](data/pdfs/SOURCES.md) and use `EVAL_LOG=1` to record a run (DeepSeek generator via `pnpm eval:deepseek`); narrow to specific cases with `EVAL_ONLY=q038,q039`.
 
 - ✅ **No hallucination** — all 3 _absent_ cases pass: asked about crypto / bitcoin / an employee count not in the filings, the system answers _"I don't know."_
 - **The stronger hosted embedder (Jina v3) lifted retrieval 0.82 → 0.94**, resolving most of the recall misses the local stack exposed (a fact retrieved for one year-phrasing but not another; a figure buried in a dense table); the larger 70b generator lifted answers to 0.95. One retrieval miss + one answer miss remain.
-- The remaining hard class is **multi-hop reasoning** (e.g. compute a year-over-year difference) — the first concrete signal for agentic/multi-step RAG (v2).
+- **A 45-case stress test over four filings earns the v2 decision.** Beyond the demo corpus, the eval now spans Berkshire + JPMorgan + Microsoft + Costco (~10k chunks) with cross-document comparison and company-disambiguation cases — see [data/pdfs/SOURCES.md](data/pdfs/SOURCES.md). With the deployed-grade embedder (Jina v3 + DeepSeek, retrieve 20): single-corpus retrieval holds (Berkshire ~20/21), but **cross-document comparison is structurally unservable by single-shot top-k retrieval — 0/6.** A single query vector for "compare A and B" collapses onto one filing, so the other's figure is never retrieved; **no embedder fixes this** (qwen-0.6b and Jina v3 both 0/6). The fix is query decomposition → per-entity retrieval, i.e. **v2 / agentic retrieval, now earned on evidence, not vibes.** Big-filing single-fact retrieval, by contrast, is *recoverable* with a stronger embedder (qwen 0.47 → Jina 0.63, same generator), so that part is an embedder/reranking concern, not architecture.
+- **Live eval dashboard.** Every `EVAL_LOG=1` run is recorded to Postgres and shown at [`/eval`](https://ragx-rosy.vercel.app/eval): run history, a per-case × per-config grid (cell = retrieval, glyph = answer), and an auto-computed delta vs the previous run — which cases a change *solved* vs *regressed*. It's how a model-fixable failure is told apart from one that needs an architecture change. (A faithful, fast generator matters here: a model that knows a famous company's numbers from training can pass an answer with *zero* retrieval, so the dashboard reads retrieval as the honest metric.)
 
 ### How we tuned the pipeline (6-case progression)
 

@@ -31,7 +31,7 @@ export async function answerQuestion(
     reranker = new IdentityReranker(),
     topK = 5,
   } = deps;
-  const [queryVector] = await embedder.embed([question]);
+  const [queryVector] = await embedder.embed([question], "query");
   const retrieved = await store.query(queryVector, topK);
   const ranked = await reranker.rerank(question, retrieved);
   const answer = await generator.generate(question, ranked);

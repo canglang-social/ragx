@@ -1,10 +1,24 @@
 import { readFile } from "node:fs/promises";
+import { execSync } from "node:child_process";
 import path from "node:path";
 import { answerQuestion, defaultDeps } from "../src/core/rag";
+import { logRun, type EvalCaseResult } from "../src/core/evalLog";
 
 // The executable spec. Reports TWO numbers, deliberately separated so a failure
 // points at its cause: retrieval hit@k measures the retriever; answer accuracy
 // measures the generator GIVEN good retrieval.
+
+// A single grounding location: the fact lives in a chunk of this doc containing
+// this substring. source_page PINS the page when the substring is non-distinctive
+// (e.g. Berkshire "operating earnings" recurs, so the page disambiguates which
+// chunk is gold). For big filings a headline figure repeats across many pages
+// (JPMorgan net income is on p3/85/101/205) and any of them grounds the answer —
+// there source_page is null and we match on the distinctive number alone.
+interface GoldChunk {
+  source_doc: string;
+  source_page: number | null;
+  contains: string;
+}
 
 interface EvalCase {
   id: string;
@@ -14,6 +28,19 @@ interface EvalCase {
   source_doc: string | null; // null for absent (answer is not in any doc)
   source_page: number | null;
   gold_chunk_contains: string;
+  // Cross-document cases need MULTIPLE gold chunks (e.g. comparing two filings):
+  // the answer isn't grounded unless ALL of them were retrieved. When present this
+  // supersedes the single source_doc/source_page/gold_chunk_contains fields above.
+  gold_chunks?: GoldChunk[];
+}
+
+// Normalize a case to its required gold chunks. Single-source cases (the common
+// kind) project to a one-element list, so the scorer has one code path.
+function goldChunksOf(c: EvalCase): GoldChunk[] {
+  if (c.gold_chunks?.length) return c.gold_chunks;
+  if (c.source_doc)
+    return [{ source_doc: c.source_doc, source_page: c.source_page, contains: c.gold_chunk_contains }];
+  return [];
 }
 
 // --- Answer matching (E12) -------------------------------------------------
@@ -76,7 +103,20 @@ function answerMatches(c: EvalCase, answerText: string): boolean {
 
 async function main(): Promise<void> {
   const file = path.join(process.cwd(), "eval", "questions.sample.json");
-  const cases: EvalCase[] = JSON.parse(await readFile(file, "utf8"));
+  const all: EvalCase[] = JSON.parse(await readFile(file, "utf8"));
+
+  // Subset selection, so a slow/paid API isn't burned re-running stable cases
+  // every iteration. EVAL_ONLY=q025,q038 picks exact ids; EVAL_FILTER=q0(3|4) is a
+  // regex over ids. Either narrows to e.g. just the cross-doc cases under work.
+  const only = process.env.EVAL_ONLY?.split(",").map((s) => s.trim()).filter(Boolean);
+  const filterRe = process.env.EVAL_FILTER ? new RegExp(process.env.EVAL_FILTER) : null;
+  const cases = all.filter(
+    (c) => (!only?.length || only.includes(c.id)) && (!filterRe || filterRe.test(c.id)),
+  );
+  if (cases.length !== all.length) {
+    console.log(`Subset: ${cases.length}/${all.length} cases (${cases.map((c) => c.id).join(",")})\n`);
+  }
+
   const deps = defaultDeps();
   const topK = deps.topK ?? 5;
 
@@ -85,19 +125,48 @@ async function main(): Promise<void> {
   let correct = 0;
   let ctxSize = 0; // chunks actually fed to the generator (post-rerank), for honest labeling
 
+  let errored = 0; // cases a transient failure (e.g. a flaky hosted API) knocked out
+  const perCase: EvalCaseResult[] = [];
+
   for (const c of cases) {
     const t0 = Date.now();
-    const { answer, retrieved } = await answerQuestion(c.question, deps);
+    // One transient network failure (hosted generator drops a connection) must not
+    // discard the whole run. Retry once, then record the case as errored and keep
+    // going — a partial table beats no table.
+    let result: Awaited<ReturnType<typeof answerQuestion>> | null = null;
+    for (let attempt = 0; attempt < 2 && !result; attempt++) {
+      try {
+        result = await answerQuestion(c.question, deps);
+      } catch (err) {
+        if (attempt === 1) {
+          errored++;
+          perCase.push({ id: c.id, retrieval: "ERR", answer: false, ms: Date.now() - t0 });
+          console.log(`${c.id}  retrieval=ERR   answer=ERR   ${String(Date.now() - t0).padStart(5)}ms  | ${c.question}  (${(err as Error).message.slice(0, 60)})`);
+        }
+      }
+    }
+    if (!result) continue;
+    const { answer, retrieved } = result;
     const ms = Date.now() - t0;
     ctxSize = Math.max(ctxSize, retrieved.length);
 
     const grounded = c.answer_type !== "absent";
+    const golds = goldChunksOf(c);
+    // A grounded case is retrieved iff EVERY required gold chunk is in context.
+    // Match on sourceDoc AND page (not page alone): across a multi-filing corpus
+    // page 3 of Costco and page 3 of JPMorgan collide, so page-only would score a
+    // Costco question a hit on a JPMorgan chunk. For cross-doc cases all golds
+    // must be present — a comparison isn't grounded if only one figure was found.
     const retrievalHit =
       grounded &&
-      retrieved.some(
-        (r) =>
-          r.metadata.page === c.source_page &&
-          r.text.toLowerCase().includes(c.gold_chunk_contains.toLowerCase()),
+      golds.length > 0 &&
+      golds.every((g) =>
+        retrieved.some(
+          (r) =>
+            r.metadata.sourceDoc === g.source_doc &&
+            (g.source_page == null || r.metadata.page === g.source_page) &&
+            r.text.toLowerCase().includes(g.contains.toLowerCase()),
+        ),
       );
     const answerOk = answerMatches(c, answer.text);
 
@@ -108,6 +177,7 @@ async function main(): Promise<void> {
     if (answerOk) correct++;
 
     const retrievalCol = grounded ? (retrievalHit ? "PASS" : "FAIL") : "n/a ";
+    perCase.push({ id: c.id, retrieval: grounded ? (retrievalHit ? "PASS" : "FAIL") : "n/a", answer: answerOk, ms });
     console.log(
       `${c.id}  retrieval=${retrievalCol}  answer=${answerOk ? "PASS" : "FAIL"}  ${String(ms).padStart(5)}ms  | ${c.question}`,
     );
@@ -115,10 +185,40 @@ async function main(): Promise<void> {
 
   const n = cases.length;
   console.log("\n--- Eval summary ---");
-  console.log(`Cases:              ${n}  (${retrievalTotal} grounded, ${n - retrievalTotal} absent)`);
+  console.log(`Cases:              ${n}  (${retrievalTotal} grounded, ${n - retrievalTotal} absent)${errored ? `  [⚠ ${errored} errored: excluded from retrieval denom, count as answer misses — re-run for a clean number]` : ""}`);
   console.log(`Pipeline:           retrieve ${topK} → ${deps.reranker?.name ?? "identity"} → ${deps.generator.name}`);
   console.log(`Retrieval hit@${ctxSize}:     ${(hits / retrievalTotal).toFixed(2)}  (${hits}/${retrievalTotal})  (gold in generator context, grounded only)`);
   console.log(`Answer accuracy:    ${(correct / n).toFixed(2)}  (${correct}/${n})`);
+
+  // Opt-in (EVAL_LOG=1): persist this run to the eval_runs table so /eval can show
+  // the per-case × per-config history. Opt-in so smoke subsets don't pollute it.
+  if (process.env.EVAL_LOG) {
+    let gitSha = "unknown";
+    try {
+      gitSha = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+        .toString()
+        .trim();
+    } catch {
+      /* not a git repo — leave "unknown" */
+    }
+    await logRun({
+      git_sha: gitSha,
+      embedder: deps.embedder.name,
+      generator: deps.generator.name,
+      reranker: deps.reranker?.name ?? "identity",
+      top_k: topK,
+      chunk_chars: process.env.CHUNK_CHARS ? Number(process.env.CHUNK_CHARS) : null,
+      n,
+      grounded: retrievalTotal,
+      retrieval_hit: retrievalTotal ? Number((hits / retrievalTotal).toFixed(4)) : 0,
+      answer_acc: Number((correct / n).toFixed(4)),
+      errored,
+      per_case: perCase,
+      note: process.env.EVAL_NOTE || null,
+      label: process.env.EVAL_LABEL || null,
+    });
+    console.log(`\nLogged run to eval_runs (git ${gitSha}).`);
+  }
 
   await deps.store.close?.();
 }
