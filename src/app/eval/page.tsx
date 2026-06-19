@@ -102,7 +102,7 @@ export default async function EvalPage({ searchParams }: { searchParams: Promise
       {error && <p style={{ color: "#cf222e" }}>Could not load runs: {error}</p>}
       {!error && allRuns.length === 0 && (
         <p style={{ color: "#57606a" }}>
-          No runs yet. Run <code>EVAL_LOG=1 pnpm eval:deepseek</code> to record one.
+          No runs yet. Run <code>EVAL_LOG=1 pnpm eval:deployed</code> (or <code>eval:local</code>) to record one.
         </p>
       )}
 

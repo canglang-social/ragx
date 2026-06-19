@@ -49,7 +49,25 @@ in the bullets below and browsable at [`/eval`](https://ragx-rosy.vercel.app/eva
 | **Deployed** — Jina `jina-embeddings-v3` + Groq `llama-3.3-70b` + pgvector | **0.94** (16/17) | **0.95** (19/20) |
 | Local dev — `nomic-embed-text` + `llama3`, in-memory                       | 0.82 (14/17)     | 0.85 (17/20)     |
 
-Reproduce: `pnpm ingest:hosted && pnpm eval:hosted` (deployed stack) or `pnpm ingest:ollama && pnpm eval:ollama` (local). For the four-filing stress test, add the other PDFs from [SOURCES.md](data/pdfs/SOURCES.md) and use `EVAL_LOG=1` to record a run (DeepSeek generator via `pnpm eval:deepseek`); narrow to specific cases with `EVAL_ONLY=q038,q039`.
+Reproduce with two presets — `pnpm ingest:local && pnpm eval:local` (Ollama,
+in-memory — offline) or `pnpm ingest:deployed && pnpm eval:deployed` (Jina + DeepSeek
++ pgvector — the production stack). Everything else is an **env composition** (the
+seams are all env-switched), so the script names stay few while any config is reachable:
+
+| Knob | env | values |
+| --- | --- | --- |
+| embedder | `EMBEDDER` · `EMBED_MODEL` · `EMBED_BASE_URL` | `ollama` (`nomic-embed-text`, `qwen3-embedding:0.6b`) · `openai` (Jina, etc.) |
+| generator | `GENERATOR` · `GEN_MODEL` · `GEN_BASE_URL` | `ollama` (`llama3`) · `openai` (DeepSeek, Groq, …) |
+| store | `VECTOR_STORE` | unset = in-memory · `pg` = pgvector (the live index) |
+| chunking | `CHUNK_CHARS` | default 350 (embedder-dependent — see embedder-comparison.md) |
+| reranker | `RERANKER` | `jina` · `lexical` (both shelved as measured negatives) |
+| eval subset | `EVAL_ONLY` · `EVAL_FILTER` | e.g. `q038,q039` — don't re-run stable cases |
+| eval logging | `EVAL_LOG` · `EVAL_NOTE` · `EVAL_LABEL` | `EVAL_LOG=1` records the run to `/eval` |
+
+For the four-filing stress test, add the other PDFs from [SOURCES.md](data/pdfs/SOURCES.md),
+ingest with the hosted embedder in-memory (`EMBEDDER=openai … npx tsx scripts/ingest.ts`,
+no `VECTOR_STORE=pg`), then eval. In-China hosted calls need `NODE_USE_ENV_PROXY=1
+NO_PROXY=localhost,127.0.0.1` (add `,api.deepseek.com` so DeepSeek goes direct).
 
 - ✅ **No hallucination** — all 3 _absent_ cases pass: asked about crypto / bitcoin / an employee count not in the filings, the system answers _"I don't know."_
 - **The stronger hosted embedder (Jina v3) lifted retrieval 0.82 → 0.94**, resolving most of the recall misses the local stack exposed (a fact retrieved for one year-phrasing but not another; a figure buried in a dense table); the larger 70b generator lifted answers to 0.95. One retrieval miss + one answer miss remain.
