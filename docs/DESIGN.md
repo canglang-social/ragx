@@ -17,11 +17,13 @@ Answer factual questions about financial filings (annual reports / 10-Ks) with *
 All in `src/core/`. Everything else depends on these interfaces, not on concrete vendors.
 
 ```ts
-interface Embedder   { embed(texts: string[]): Promise<number[][]>; }
-interface VectorStore{ upsert(chunks, vectors): Promise<void>; query(vec, topK): Promise<RetrievedChunk[]>; }
-interface Generator  { generate(question, context): Promise<Answer>; }
-interface Reranker   { rerank(question, chunks): Promise<RetrievedChunk[]>; }
+interface Embedder   { name; dim; embed(texts: string[], kind?: "query"|"document"): Promise<number[][]>; }
+interface VectorStore{ upsert(entries): Promise<void>; query(vec, topK): Promise<RetrievedChunk[]>; reset(); close?(); }
+interface Generator  { name; generate(question, context): Promise<Answer>; }
+interface Reranker   { name; rerank(question, chunks): Promise<RetrievedChunk[]>; }
 ```
+
+(`kind` carries the query/document asymmetry — measured-neutral on this eval, off by default, but the seam is the right shape. v2 adds a fifth seam, `Planner` — see the roadmap.)
 
 `Answer = { text, citations: {sourceDoc, page}[] }`. Citations are non-negotiable: an uncited answer is a failed answer.
 
@@ -29,19 +31,19 @@ interface Reranker   { rerank(question, chunks): Promise<RetrievedChunk[]>; }
 
 `eval/questions.sample.json` defines expected behavior. Two metrics, reported by `npm run eval`:
 
-- **Retrieval hit@k**: did a chunk on `source_page` containing `gold_chunk_contains` appear in the top-k? (Measures the retriever.)
-- **Answer accuracy**: does the generated answer contain `expected_answer`? (Measures the generator, given good retrieval.)
+- **Retrieval hit@k**: did the gold chunk(s) reach the top-k — matched by `sourceDoc` + a distinctive `gold_chunk_contains` substring (and `source_page` when that substring recurs across pages)? Cross-document cases list multiple `gold_chunks` and require **all** of them retrieved (a comparison isn't grounded if only one figure was found). (Measures the retriever.)
+- **Answer accuracy**: does the generated answer match `expected_answer` (numeric/unit-tolerant for `answer_type:"numerical"`; a refusal for `absent` cases)? (Measures the generator, given good retrieval.)
 
 Separating the two metrics is deliberate: it tells you *where* a failure is (retrieval vs generation), which is what you tune.
 
 ## Roadmap & the signals that trigger each step
 
-| Version | Scope | Trigger to start |
+| Version | Scope | Status / trigger |
 | --- | --- | --- |
-| v0 | Skeleton: mock embedder/generator, in-memory store, dummy doc | now |
-| v1 | Real PDFs + PaddleOCR, Ollama embeddings, pgvector, real LLM, 30–50 eval cases, deploy | skeleton walks end-to-end |
-| v2 | Agentic RAG: query rewriting, multi-hop retrieval, self-correction loop (LangGraph.js) | eval shows the linear baseline failing on hard, multi-fact questions |
+| v0 | Skeleton: mock embedder/generator, in-memory store, dummy doc | ✅ done |
+| v1 | Real PDFs via unpdf (PaddleOCR **not needed** — text layers were clean), Ollama + hosted Jina embeddings, pgvector on Neon, hosted Groq LLM, **45 eval cases over 4 filings**, deploy + an `/eval` dashboard | ✅ shipped & deployed (20-case demo 0.94 / 0.95; 45-case stress test on `/eval`) |
+| v2 | Agentic retrieval. **Trigger fired:** cross-document comparison is 0/6 — a single query vector can't reach two filings (embedder-independent). First step: **query decomposition** (a `Planner` seam → per-entity sub-queries → merge) — one branch, **not** a loop, so still no LangGraph; that waits for true cycles (self-correction / re-query). | in progress |
 
-The roadmap is signal-driven, not calendar-driven. Each step is justified by a number the previous step produced.
+The roadmap is signal-driven, not calendar-driven. Each step is justified by a number the previous step produced. v2's decomposition fixes cross-document *reach*; the remaining cross-doc misses are within-document single-fact retrieval gaps (the parallel v1.5 lever: reranking / hybrid lexical+vector — see [TODO.md](../TODO.md) B9).
 
 Granular, check-off-able v1 tasks live in [TODO.md](../TODO.md) — kept separate so this design doc stays stable.

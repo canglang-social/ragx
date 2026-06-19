@@ -30,6 +30,10 @@ tagged by *kind*, because conflating them is a common mistake:
   the new risk; it is not pure upside.
 - **[HARD]** Never trust a gold/expected string you haven't verified against the
   actual extracted text.
+- **[HARD]** A capable generator can answer a well-known fact from its training with
+  **zero retrieval** — so answer-accuracy ≠ retrieval-success on famous entities. Judge
+  retrieval directly, and keep a synthetic/leak-proof doc the model can't have memorized
+  (here: the Meridian fixture). A red retrieval cell with a passing answer = parametric leak.
 
 ## 2. Architecture
 
@@ -76,6 +80,10 @@ tagged by *kind*, because conflating them is a common mistake:
 - **[CONV]** Pick a defensible default, make it a knob, let the eval move it — don't
   agonize over the first value. Its only jobs are to be reasonable and adjustable.
 - **[CONV]** Move a parameter only on a measured signal, via an A/B, then re-measure.
+- **[HARD]** A tuned parameter is **conditional on the components it was measured with** —
+  re-validate it on an embedder or corpus change, because the optimum can *flip*. (350-char
+  chunks beat 800 for Jina v3, but 800 beat 350 for qwen-0.6b on the same corpus; blindly
+  carrying one embedder's choice to another would have regressed retrieval.)
 - **[CONV]** Cheapest lever first (raise `topK` before building a reranker).
 - **[HARD]** Budget context in tokens; stay under the model's window; the practical
   sweet spot is usually well below the ceiling ("lost in the middle").

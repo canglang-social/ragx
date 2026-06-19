@@ -3,7 +3,9 @@
 Granular, churny task list. The stable "why" lives in [docs/DESIGN.md](docs/DESIGN.md).
 v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 
-> **Status: v1 SHIPPED** 🎉 — live at https://ragx-rosy.vercel.app/. Deployed stack (Jina + Groq + pgvector on Vercel/Neon) evals **0.94 retrieval / 0.95 answer** (20 cases, no-hallucination proven). Remaining polish: F14 (UX), D11 (units), E14 (eval guard). Next frontier: v2 agentic (multi-hop).
+> **Status: v1 SHIPPED** 🎉 — live at https://ragx-rosy.vercel.app/. Deployed stack (Jina + Groq + pgvector on Vercel/Neon) evals **0.94 retrieval / 0.95 answer** (20-case demo, no-hallucination proven).
+>
+> **Since v1:** grew the eval to **45 cases over 4 filings** (JPMorgan / Microsoft / Costco + Berkshire — cross-document comparison + company disambiguation + harder multi-hop), added a live **`/eval` dashboard** (run history · per-case × per-config grid · per-run delta · question-history · timeline) and a DeepSeek generator path. **v2 (in progress):** query decomposition fixes cross-document *reach* (0 → both filings retrieved); the remaining cross-doc misses are within-document single-fact gaps (q031 MSFT net income, q035 Costco revenue) → the v1.5 reranking/hybrid lever (B9). Open polish: D11 (units), E14 (matcher false-positive guard).
 
 ## A. Ingestion — real data
 - [x] A1. PDF text extractor via `unpdf`; `loadPdfs(dir)` → one chunk/page with `{sourceDoc, page, company, year}` (company/year from `company-year.pdf` filename). Synthetic 4-page fixture; eval holds 1.00/1.00, no regression.
@@ -27,7 +29,7 @@ v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 - [ ] D11. Prompt the generator to ALWAYS state the unit/scale (e.g. "$37.4 billion" / "$37,350 million"), so answers are self-contained. Right now q004 passes only because E12's matcher tolerates the unit-dropped "$37,350" — fixing the source makes it pass for the right reason and reduces reliance on lenient matching.
 
 ## E. Eval — the differentiator
-- [~] E11. Grew eval 6 → 20 verified cases (17 grounded: single-fact / multi-fact / free-form + 3 absent/refusal). Honest baseline: retrieval 0.82, answer 0.85 (was a fake 1.00 on 6). Exposed B9 (table + phrasing recall) and the first v2 signal (q014 multi-hop arithmetic). Keep growing toward 30–50, add a 2nd real filing.
+- [x] E11. Grew eval 6 → 20 → **45 verified cases over 4 filings** (added JPMorgan / Microsoft / Costco; cross-document comparison + company disambiguation + harder multi-hop, on top of single/multi-fact + absent). Honest baseline held; fixed a multi-doc scoring bug (match `sourceDoc`, not page alone) + added `gold_chunks[]` for cross-doc. Surfaced the cross-document retrieval limit (→ v2) and within-document table misses (→ B9). The 30–50 / multi-filing target is met.
 - [x] E12. Numeric/unit/scale-tolerant matching for `answer_type:"numerical"` (1% tol; tries 10^3 scale steps when the answer drops its unit). Fixed the q004 false-negative: answer accuracy 0.50 → 0.67. LLM-judge for free-form deferred until a free-form case needs it.
 - [x] E13. Results table in README (retrieve-K sweep + the reranker negative result), with the per-change reasoning. Honest, apples-to-apples under E12 matching.
 - [ ] E14. Guard E12 against FALSE-POSITIVES. Loosening the matcher traded false-negatives for possible false-positives; we only luck-checked it. Add a deliberately-ambiguous / wrong-but-close case (e.g. a near-miss number) that the matcher MUST still mark wrong, so the tolerance can't silently over-pass.
