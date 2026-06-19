@@ -35,6 +35,37 @@ domain, and it's free + hosted + deployed. The embedder hunt has hit diminishing
 - **Failures vary by embedder** — q008 / q013 / q014 / q017 move between models. No
   bi-encoder nails all; they're the genuinely hard cases (dense tables, multi-hop).
 
+## Chunk size is embedder-dependent (45-case corpus)
+
+A later finding from the larger **four-filing eval** (45 cases, DeepSeek generator,
+retrieve 20; browse at [`/eval`](https://ragx-rosy.vercel.app/eval)), holding
+everything fixed but the chunk size:
+
+| Embedder | 350-char | 800-char | Best |
+| --- | --- | --- | --- |
+| `jina-embeddings-v3` (deployed) | **0.625** | 0.55 | 350 (+0.075) |
+| `qwen3-embedding:0.6b` | 0.475 | **0.575** | 800 (+0.10) |
+
+**The optimal chunk size flips with the embedder.** The stronger model (Jina) prefers
+*fine* 350-char chunks — it can pinpoint the exact small chunk holding a figure; the
+weaker model (qwen-0.6b) prefers *coarse* 800-char chunks — more context per chunk
+offsets weaker discrimination, and fewer chunks compete for the top-20.
+
+Two consequences:
+
+- **Deployed Jina@350 is validated, not just inherited** (0.625 > 0.55). The 350 chosen
+  on the v1 Berkshire corpus is still optimal for Jina on the bigger corpus.
+- **Tuning does not transfer across embedders.** v1 measured 350 > 800 (Berkshire/nomic);
+  qwen-0.6b on this corpus wants the opposite. Had we blindly carried qwen's "800 is
+  better" to the deployed Jina, retrieval would have **regressed 0.625 → 0.55.**
+  Re-validate chunk size (`CHUNK_CHARS`) on any embedder *or* corpus change.
+
+(Also on the 45-case corpus: the embedder *ranking* itself reversed — `nomic` 0.55 >
+`qwen-0.6b` 0.475, whereas on the 20-case Berkshire set qwen beat nomic. Even your own
+eval doesn't transfer across document sets. `qwen3-8b` couldn't be measured in-memory:
+a 4096-dim × 10k-chunk index exceeds V8's `JSON.stringify` string limit — high-dim
+embedders need the pg store.)
+
 ## Reproduce a row
 
 Same eval, swap the embedder. Experiments use the **in-memory** store (omit
