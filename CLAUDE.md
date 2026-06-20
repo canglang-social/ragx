@@ -41,5 +41,5 @@ The four seams — `Embedder`, `VectorStore`, `Generator`, `Reranker` — are in
 ## Roadmap (see docs/DESIGN.md)
 
 - **v0:** ✅ walking skeleton — mock embedder/generator, in-memory store, dummy doc, 3 eval cases.
-- **v1:** ✅ shipped & deployed — real PDFs via unpdf (PaddleOCR not needed; text layers were clean), Ollama + hosted Jina embeddings, pgvector on Neon, hosted Groq generator, **45 eval cases over 4 filings**, live demo + an `/eval` dashboard.
+- **v1:** ✅ shipped & deployed — real PDFs via unpdf (PaddleOCR not needed; text layers were clean), Ollama + hosted Jina embeddings, pgvector on Neon, hosted DeepSeek generator (v1 shipped on Groq; unified on DeepSeek 2026-06-20 — reliable from China + 1.00 on the demo), **45 eval cases over 4 filings**, live demo + an `/eval` dashboard.
 - **v2 (in progress, branch `feat/v2-query-decomposition`):** agentic retrieval. **Trigger fired** — cross-document comparison is 0/6: a single query vector can't reach two filings, and it's embedder-independent. First step is **query decomposition** (a `Planner` seam: per-entity sub-queries → merge), which is one branch, not a loop — so still **no LangGraph**. LangGraph waits for true cycles (self-correction / re-query). Decomposition fixes cross-doc *reach*; the remaining misses are within-document single-fact retrieval (the v1.5 reranking/hybrid lever).

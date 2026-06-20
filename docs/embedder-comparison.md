@@ -17,7 +17,7 @@ network) vs ☁ API (hosted).
 | `qwen3-embedding:0.6b` | 🖥 local | 1024 | llama3 | 0.88 (15/17) | 0.90 | fast (~5s/case); fixed q008, missed q013 + q014 |
 | `qwen3-embedding:0.6b` + query instruction | 🖥 local | 1024 | llama3 | 0.88 (15/17) | 0.90 | qwen's `Instruct: …Query:` on the query — **net-neutral** (fixed q014, broke q017); asymmetry just shuffled misses |
 | `qwen3-embedding:8b` | 🖥 local | 4096 | llama3 | 0.88 (15/17) | 0.90 | MTEB #5, heavy; fixed q008, missed q013 + q017; **still < Jina v3** (likely protocol-handicapped, below) |
-| `jina-embeddings-v3` | ☁ API | 1024 | Groq 70b | **0.94** (16/17) | 0.95 | **shipped / deployed winner**; only miss q008 (equity ranks 77) |
+| `jina-embeddings-v3` | ☁ API | 1024 | DeepSeek | **0.94** (16/17) | 1.00 | **shipped / deployed embedder**; deploy generator unified on DeepSeek (was Groq 70b, 0.95); only retrieval miss q008 (equity ranks 77) |
 | `jina-embeddings-v5-text-small` | ☁ API | ? | — | _pending_ | — | free tier throttled — paid / later |
 
 **Conclusion: Jina v3 (0.94) wins** — even the heavy MTEB-#5 8b doesn't beat it on this
@@ -83,7 +83,7 @@ EMBEDDER=ollama EMBED_MODEL=<model> GENERATOR=ollama GEN_MODEL=llama3 TOP_K=20 n
 ```bash
 NODE_USE_ENV_PROXY=1 NO_PROXY=localhost,127.0.0.1 \
   EMBEDDER=openai EMBED_BASE_URL=<provider /v1> EMBED_MODEL=<model> npx tsx scripts/ingest.ts
-# eval: also set GENERATOR=openai GEN_BASE_URL=https://api.groq.com/openai/v1 \
-#       GEN_MODEL=llama-3.3-70b-versatile TOP_K=20
+# eval: also set GENERATOR=openai GEN_BASE_URL=https://api.deepseek.com/v1 \
+#       GEN_MODEL=deepseek-chat TOP_K=20
 # (export EMBED_API_KEY / GEN_API_KEY; add VECTOR_STORE=pg only to write the live index)
 ```

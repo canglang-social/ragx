@@ -2,7 +2,7 @@
 
 A Retrieval-Augmented Generation (RAG) system that answers questions about **financial filings** with cited, verifiable answers — and **measures its own quality** with an eval set.
 
-**▶ Live demo: https://ragx-rosy.vercel.app/** &nbsp;·&nbsp; Eval (20 cases): **retrieval 0.94 · answer 0.95**, with proven no-hallucination on out-of-corpus questions. &nbsp;·&nbsp; **[Live eval dashboard →](https://ragx-rosy.vercel.app/eval)**
+**▶ Live demo: https://ragx-rosy.vercel.app/** &nbsp;·&nbsp; Eval (20-case demo): **retrieval 0.94 · answer 1.00**, with proven no-hallucination on out-of-corpus questions (a harder 45-case / 4-filing stress test is below). &nbsp;·&nbsp; **[Live eval dashboard →](https://ragx-rosy.vercel.app/eval)**
 
 ## Why this project is built the way it is
 
@@ -46,8 +46,8 @@ in the bullets below and browsable at [`/eval`](https://ragx-rosy.vercel.app/eva
 
 | Stack                                                                      | Retrieval hit@20 | Answer accuracy  |
 | -------------------------------------------------------------------------- | ---------------- | ---------------- |
-| **Deployed** — Jina `jina-embeddings-v3` + Groq `llama-3.3-70b` + pgvector | **0.94** (16/17) | **0.95** (19/20) |
-| Local dev — `nomic-embed-text` + `llama3`, in-memory                       | 0.82 (14/17)     | 0.85 (17/20)     |
+| **Deployed** — Jina `jina-embeddings-v3` + DeepSeek `deepseek-chat` + pgvector | **0.94** (16/17) | **1.00** (20/20) |
+| Local dev — `nomic-embed-text` + `llama3`, in-memory                          | 0.82 (14/17)     | 0.85 (17/20)     |
 
 Reproduce with two presets — `pnpm ingest:local && pnpm eval:local` (Ollama,
 in-memory — offline) or `pnpm ingest:deployed && pnpm eval:deployed` (Jina + DeepSeek
@@ -70,7 +70,7 @@ no `VECTOR_STORE=pg`), then eval. In-China hosted calls need `NODE_USE_ENV_PROXY
 NO_PROXY=localhost,127.0.0.1` (add `,api.deepseek.com` so DeepSeek goes direct).
 
 - ✅ **No hallucination** — all 3 _absent_ cases pass: asked about crypto / bitcoin / an employee count not in the filings, the system answers _"I don't know."_
-- **The stronger hosted embedder (Jina v3) lifted retrieval 0.82 → 0.94**, resolving most of the recall misses the local stack exposed (a fact retrieved for one year-phrasing but not another; a figure buried in a dense table); the larger 70b generator lifted answers to 0.95. One retrieval miss + one answer miss remain.
+- **The stronger hosted embedder (Jina v3) lifted retrieval 0.82 → 0.94**, resolving most of the recall misses the local stack exposed (a fact retrieved for one year-phrasing but not another; a figure buried in a dense table); the hosted DeepSeek generator answers all 20 demo cases (1.00). One retrieval miss remains (q008, shareholders' equity ranks ~77) — answered correctly anyway, which is exactly why retrieval, not answer accuracy, is the metric to trust on well-known companies.
 - **A 45-case stress test over four filings earns the v2 decision.** Beyond the demo corpus, the eval now spans Berkshire + JPMorgan + Microsoft + Costco (~10k chunks) with cross-document comparison and company-disambiguation cases — see [data/pdfs/SOURCES.md](data/pdfs/SOURCES.md). With the deployed-grade embedder (Jina v3 + DeepSeek, retrieve 20): single-corpus retrieval holds (Berkshire ~20/21), but **cross-document comparison is structurally unservable by single-shot top-k retrieval — 0/6.** A single query vector for "compare A and B" collapses onto one filing, so the other's figure is never retrieved; **no embedder fixes this** (qwen-0.6b and Jina v3 both 0/6). The fix is query decomposition → per-entity retrieval, i.e. **v2 / agentic retrieval, now earned on evidence, not vibes.** Big-filing single-fact retrieval, by contrast, is *recoverable* with a stronger embedder (qwen 0.47 → Jina 0.63, same generator), so that part is an embedder/reranking concern, not architecture.
 - **Live eval dashboard.** Every `EVAL_LOG=1` run is recorded to Postgres and shown at [`/eval`](https://ragx-rosy.vercel.app/eval): run history, a per-case × per-config grid (cell = retrieval, glyph = answer), and an auto-computed delta vs the previous run — which cases a change *solved* vs *regressed*. It's how a model-fixable failure is told apart from one that needs an architecture change. (A faithful, fast generator matters here: a model that knows a famous company's numbers from training can pass an answer with *zero* retrieval, so the dashboard reads retrieval as the honest metric.)
 

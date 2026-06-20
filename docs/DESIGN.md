@@ -41,7 +41,7 @@ Separating the two metrics is deliberate: it tells you *where* a failure is (ret
 | Version | Scope | Status / trigger |
 | --- | --- | --- |
 | v0 | Skeleton: mock embedder/generator, in-memory store, dummy doc | ✅ done |
-| v1 | Real PDFs via unpdf (PaddleOCR **not needed** — text layers were clean), Ollama + hosted Jina embeddings, pgvector on Neon, hosted Groq LLM, **45 eval cases over 4 filings**, deploy + an `/eval` dashboard | ✅ shipped & deployed (20-case demo 0.94 / 0.95; 45-case stress test on `/eval`) |
+| v1 | Real PDFs via unpdf (PaddleOCR **not needed** — text layers were clean), Ollama + hosted Jina embeddings, pgvector on Neon, hosted DeepSeek LLM (v1 shipped on Groq; unified on DeepSeek 2026-06-20), **45 eval cases over 4 filings**, deploy + an `/eval` dashboard | ✅ shipped & deployed (20-case demo 0.94 / 1.00; 45-case stress test on `/eval`) |
 | v2 | Agentic retrieval. **Trigger fired:** cross-document comparison is 0/6 — a single query vector can't reach two filings (embedder-independent). First step: **query decomposition** (a `Planner` seam → per-entity sub-queries → merge) — one branch, **not** a loop, so still no LangGraph; that waits for true cycles (self-correction / re-query). | in progress |
 
 The roadmap is signal-driven, not calendar-driven. Each step is justified by a number the previous step produced. v2's decomposition fixes cross-document *reach*; the remaining cross-doc misses are within-document single-fact retrieval gaps (the parallel v1.5 lever: reranking / hybrid lexical+vector — see [TODO.md](../TODO.md) B9).

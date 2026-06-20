@@ -3,7 +3,7 @@
 Granular, churny task list. The stable "why" lives in [docs/DESIGN.md](docs/DESIGN.md).
 v1 turns the v0 skeleton into a real, deployed RAG over financial filings.
 
-> **Status: v1 SHIPPED** 🎉 — live at https://ragx-rosy.vercel.app/. Deployed stack (Jina + Groq + pgvector on Vercel/Neon) evals **0.94 retrieval / 0.95 answer** (20-case demo, no-hallucination proven).
+> **Status: v1 SHIPPED** 🎉 — live at https://ragx-rosy.vercel.app/. Deployed stack (Jina + DeepSeek + pgvector on Vercel/Neon) evals **0.94 retrieval / 1.00 answer** (20-case demo, no-hallucination proven). _(v1 shipped on Groq; unified on DeepSeek 2026-06-20 — reliable from China and 20/20 vs Groq's 19/20 on the demo.)_
 >
 > **Since v1:** grew the eval to **45 cases over 4 filings** (JPMorgan / Microsoft / Costco + Berkshire — cross-document comparison + company disambiguation + harder multi-hop), added a live **`/eval` dashboard** (run history · per-case × per-config grid · per-run delta · question-history · timeline) and a DeepSeek generator path. **v2 (in progress):** query decomposition fixes cross-document *reach* (0 → both filings retrieved); the remaining cross-doc misses are within-document single-fact gaps (q031 MSFT net income, q035 Costco revenue) → the v1.5 reranking/hybrid lever (B9). Open polish: D11 (units), E14 (matcher false-positive guard).
 
