@@ -107,14 +107,27 @@ export class OpenAIEmbedder implements Embedder {
 
   private async embedBatch(input: string[], task?: string): Promise<number[][]> {
     for (let attempt = 0; ; attempt++) {
-      const res = await fetch(`${this.baseUrl}/embeddings`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({ model: this.model, input, ...(task ? { task } : {}) }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${this.baseUrl}/embeddings`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify({ model: this.model, input, ...(task ? { task } : {}) }),
+        });
+      } catch (err) {
+        // Network error (e.g. a proxy socket dropped mid-ingest — common on long
+        // batched runs over a flaky connection). Retry with backoff; embeddings are
+        // idempotent, so re-sending the same batch is safe. One drop shouldn't void
+        // a 10k-chunk ingest.
+        if (attempt < 5) {
+          await new Promise((r) => setTimeout(r, 2 ** attempt * 1000 + 250));
+          continue;
+        }
+        throw err;
+      }
       if (res.status === 429 && attempt < 5) {
         const retryAfter = Number(res.headers.get("retry-after"));
         const waitMs =
