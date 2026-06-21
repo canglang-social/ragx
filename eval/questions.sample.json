@@ -480,26 +480,5 @@
     "source_doc": null,
     "source_page": null,
     "gold_chunk_contains": ""
-  },
-  {
-    "id": "q046",
-    "question": "How much larger was Microsoft's total revenue than JPMorgan Chase's net income in 2023?",
-    "expected_answer": "$162.4 billion",
-    "answer_type": "numerical",
-    "source_doc": null,
-    "source_page": null,
-    "gold_chunk_contains": "",
-    "gold_chunks": [
-      {
-        "source_doc": "microsoft-2023.pdf",
-        "source_page": null,
-        "contains": "211,915"
-      },
-      {
-        "source_doc": "jpmorgan-2023.pdf",
-        "source_page": null,
-        "contains": "Net income $ 49,552"
-      }
-    ]
   }
 ]
