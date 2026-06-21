@@ -11,7 +11,45 @@ export interface RagDeps {
   generator: Generator;
   reranker?: Reranker;
   planner?: Planner;
+  hybrid?: boolean; // fuse BM25 + vector (RRF) instead of vector-only retrieval
   topK?: number;
+}
+
+// Candidate depth pulled from each retriever before fusion. Must exceed the rank
+// at which a vector miss can still recover (q031's gold ranked 42) so RRF can lift
+// it; the lexical list rescues true recall misses (q035, absent from vector top-100).
+const CANDIDATES = 100;
+
+// Reciprocal Rank Fusion: combine ranked lists by Σ 1/(k + rank). Rank-based, so it
+// needs no score normalization across the (incomparable) cosine and BM25 scales —
+// that robustness is exactly why RRF is the default hybrid fuser.
+function rrf(lists: RetrievedChunk[][], topK: number, k = 60): RetrievedChunk[] {
+  const score = new Map<string, number>();
+  const byId = new Map<string, RetrievedChunk>();
+  for (const list of lists) {
+    list.forEach((c, rank) => {
+      score.set(c.id, (score.get(c.id) ?? 0) + 1 / (k + rank + 1));
+      if (!byId.has(c.id)) byId.set(c.id, c);
+    });
+  }
+  return [...byId.values()]
+    .map((c) => ({ ...c, score: score.get(c.id)! })) // expose the fused score
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK);
+}
+
+// Retrieve for ONE query: vector-only, or (hybrid) vector + BM25 fused via RRF.
+async function retrieveOne(query: string, deps: RagDeps): Promise<RetrievedChunk[]> {
+  const { embedder, store, hybrid = false, topK = 5 } = deps;
+  const [vector] = await embedder.embed([query], "query");
+  if (!hybrid || !store.keywordQuery) {
+    return store.query(vector, topK);
+  }
+  const [vectorHits, keywordHits] = await Promise.all([
+    store.query(vector, CANDIDATES),
+    store.keywordQuery(query, CANDIDATES),
+  ]);
+  return rrf([vectorHits, keywordHits], topK);
 }
 
 export interface RagResult {
@@ -29,30 +67,24 @@ export async function answerQuestion(
   deps: RagDeps,
 ): Promise<RagResult> {
   const {
-    embedder,
-    store,
     generator,
     reranker = new IdentityReranker(),
     planner = new NoPlanner(),
-    topK = 5,
   } = deps;
 
-  // The planner may split the question into per-entity sub-queries. One sub-query =
-  // the linear v0/v1 path. Multiple = retrieve each and MERGE, so a cross-document
-  // comparison sees BOTH filings' chunks — which a single query vector can't reach.
+  // The planner may split the question into per-entity sub-queries (one = the linear
+  // path). Each sub-query is retrieved on its own — vector-only, or hybrid (BM25 +
+  // vector fused by RRF) when deps.hybrid — then MERGED by chunk id, so a
+  // cross-document comparison sees each entity's chunks.
   const subQueries = await planner.plan(question);
-  const vectors = await embedder.embed(subQueries, "query");
 
   let retrieved: RetrievedChunk[];
-  if (vectors.length <= 1) {
-    retrieved = await store.query(vectors[0], topK);
+  if (subQueries.length <= 1) {
+    retrieved = await retrieveOne(subQueries[0] ?? question, deps);
   } else {
-    // Union by chunk id (best score wins), then sort by score. Each sub-query gets
-    // its own topK, so each entity's gold chunk — which ranks high for ITS sub-query —
-    // survives into the merged context.
     const best = new Map<string, RetrievedChunk>();
-    for (const v of vectors) {
-      for (const hit of await store.query(v, topK)) {
+    for (const sq of subQueries) {
+      for (const hit of await retrieveOne(sq, deps)) {
         const prev = best.get(hit.id);
         if (!prev || hit.score > prev.score) best.set(hit.id, hit);
       }
@@ -91,6 +123,7 @@ export function defaultDeps(): RagDeps {
     generator,
     reranker,
     planner: makePlanner(),
+    hybrid: process.env.RETRIEVER === 'hybrid',
     topK: Number(process.env.TOP_K ?? 5),
   };
 }

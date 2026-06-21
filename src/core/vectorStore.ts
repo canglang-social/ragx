@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PgVectorStore } from "./pgVectorStore";
+import { BM25 } from "./bm25";
 import type { Chunk, RetrievedChunk } from "./types";
 
 // SEAM 2: VectorStore. Holds vectors, returns the nearest ones for a query.
@@ -8,6 +9,9 @@ import type { Chunk, RetrievedChunk } from "./types";
 export interface VectorStore {
   upsert(entries: StoredVector[]): Promise<void>;
   query(vector: number[], topK: number): Promise<RetrievedChunk[]>;
+  // Optional lexical (BM25) search, for hybrid retrieval. In-memory implements it;
+  // pg can add Postgres FTS later. If absent, hybrid falls back to vector-only.
+  keywordQuery?(query: string, topK: number): Promise<RetrievedChunk[]>;
   reset(): Promise<void>;
   close?(): Promise<void>; // release connections (no-op for in-memory)
 }
@@ -38,6 +42,7 @@ function cosine(a: number[], b: number[]): number {
 export class InMemoryVectorStore implements VectorStore {
   private records: StoredVector[] = [];
   private loaded = false;
+  private bm25?: BM25; // lazily built lexical index over chunk text
 
   constructor(private file = path.join(process.cwd(), "data", "index.json")) {}
 
@@ -58,6 +63,7 @@ export class InMemoryVectorStore implements VectorStore {
 
   async reset(): Promise<void> {
     this.records = [];
+    this.bm25 = undefined;
     this.loaded = true;
     await this.persist();
   }
@@ -74,6 +80,15 @@ export class InMemoryVectorStore implements VectorStore {
       .map((r) => ({ ...r.chunk, score: cosine(vector, r.vector) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, topK);
+  }
+
+  // BM25 over chunk text. Index built once (lazily) from the loaded records.
+  async keywordQuery(query: string, topK: number): Promise<RetrievedChunk[]> {
+    await this.load();
+    this.bm25 ??= new BM25(this.records.map((r) => r.chunk.text));
+    return this.bm25
+      .search(query, topK)
+      .map(({ doc, score }) => ({ ...this.records[doc].chunk, score }));
   }
 }
 
