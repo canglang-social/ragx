@@ -2,7 +2,7 @@
 
 A Retrieval-Augmented Generation (RAG) system that answers questions about **financial filings** with cited, verifiable answers — and **measures its own quality** with an eval set.
 
-**▶ Live demo: https://ragx-rosy.vercel.app/** &nbsp;·&nbsp; Eval (20-case demo): **retrieval 0.94 · answer 1.00**, with proven no-hallucination on out-of-corpus questions (a harder 45-case / 4-filing stress test is below). &nbsp;·&nbsp; **[Live eval dashboard →](https://ragx-rosy.vercel.app/eval)**
+**▶ Live demo: https://ragx-rosy.vercel.app/** &nbsp;·&nbsp; Cross-document Q&A over **five filings** (Berkshire · JPMorgan · Microsoft · Costco + a synthetic fixture), with proven no-hallucination on out-of-corpus questions. The deployed **v2 stack** — hybrid retrieval + query decomposition + a cross-encoder reranker — scores **retrieval 0.80 · answer 0.91** on a 45-case stress test, up from a 0.63 / 0.78 single-vector baseline. &nbsp;·&nbsp; **[Live eval dashboard →](https://ragx-rosy.vercel.app/eval)**
 
 ## Why this project is built the way it is
 
@@ -37,17 +37,21 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap. Also:
 
 ## Eval results
 
-The **deployed demo's** eval: **20 cases** over a synthetic fixture + a real
-152-page Berkshire Hathaway 2023 filing — 17 grounded (single-fact, multi-fact,
-free-form) + 3 _absent_ (answer is in no doc; the system must refuse, not invent).
-Numeric/unit-tolerant matching. (A larger **45-case, four-filing stress test** —
-which is what surfaced the cross-document limit and the v2 decision — is described
-in the bullets below and browsable at [`/eval`](https://ragx-rosy.vercel.app/eval).)
+The **deployed** eval: **45 cases** over five filings (a synthetic fixture +
+Berkshire / JPMorgan / Microsoft / Costco) — grounded single-fact, multi-fact, and
+**cross-document comparison** cases, plus _absent_ cases (the answer is in no doc; the
+system must refuse, not invent). Numeric/unit-tolerant matching. Two metrics, kept
+separate so a failure points at retrieval vs generation.
 
-| Stack                                                                      | Retrieval hit@20 | Answer accuracy  |
-| -------------------------------------------------------------------------- | ---------------- | ---------------- |
-| **Deployed** — Jina `jina-embeddings-v3` + DeepSeek `deepseek-chat` + pgvector | **0.94** (16/17) | **1.00** (20/20) |
-| Local dev — `nomic-embed-text` + `llama3`, in-memory                          | 0.82 (14/17)     | 0.85 (17/20)     |
+| Stack (45-case eval · Jina `jina-embeddings-v3` + DeepSeek + pgvector) | Retrieval | Answer |
+| --------------------------------------------------------------------- | --------- | ------ |
+| **Deployed v2** — hybrid (BM25+vector, RRF) + query decomposition + Jina reranker | **0.80** (32/40) | **0.91** (41/45) |
+| v1 baseline — single query vector, same models                                    | 0.63 (25/40)     | 0.78 (35/45)     |
+
+In-memory the lexical half is Okapi BM25 instead of Postgres FTS and retrieval reaches
+**0.85** (browsable at [`/eval`](https://ragx-rosy.vercel.app/eval)). The earlier v1
+demo — a narrower 20-case, Berkshire-only set — scored 0.94 / 1.00; v2 trades that for
+**breadth**: five filings and cross-document Q&A, honestly measured on harder cases.
 
 Reproduce with two presets — `pnpm ingest:local && pnpm eval:local` (Ollama,
 in-memory — offline) or `pnpm ingest:deployed && pnpm eval:deployed` (Jina + DeepSeek
@@ -72,7 +76,8 @@ NO_PROXY=localhost,127.0.0.1` (add `,api.deepseek.com` so DeepSeek goes direct).
 - ✅ **No hallucination** — all 3 _absent_ cases pass: asked about crypto / bitcoin / an employee count not in the filings, the system answers _"I don't know."_
 - **The stronger hosted embedder (Jina v3) lifted retrieval 0.82 → 0.94**, resolving most of the recall misses the local stack exposed (a fact retrieved for one year-phrasing but not another; a figure buried in a dense table); the hosted DeepSeek generator answers all 20 demo cases (1.00). One retrieval miss remains (q008, shareholders' equity ranks ~77) — answered correctly anyway, which is exactly why retrieval, not answer accuracy, is the metric to trust on well-known companies.
 - **A 45-case stress test over four filings earns the v2 decision.** Beyond the demo corpus, the eval now spans Berkshire + JPMorgan + Microsoft + Costco (~10k chunks) with cross-document comparison and company-disambiguation cases — see [data/pdfs/SOURCES.md](data/pdfs/SOURCES.md). With the deployed-grade embedder (Jina v3 + DeepSeek, retrieve 20): single-corpus retrieval holds (Berkshire ~20/21), but **cross-document comparison is structurally unservable by single-shot top-k retrieval — 0/6.** A single query vector for "compare A and B" collapses onto one filing, so the other's figure is never retrieved; **no embedder fixes this** (qwen-0.6b and Jina v3 both 0/6). The fix is query decomposition → per-entity retrieval, i.e. **v2 / agentic retrieval, now earned on evidence, not vibes.** Big-filing single-fact retrieval, by contrast, is *recoverable* with a stronger embedder (qwen 0.47 → Jina 0.63, same generator), so that part is an embedder/reranking concern, not architecture.
-- **Measured: hybrid (BM25+vector, RRF) + query decomposition lift retrieval 0.63 → 0.70 and answer 0.78 → 0.82** (A/B'd on `/eval`), grounding cross-document cases (e.g. *Microsoft vs JPMorgan net income*) that were 0/6. The two are **complementary**: hybrid *alone* is a wash, but it makes the buried figure retrievable — which is exactly what then lets decomposition ground the comparison. Behind `RETRIEVER=hybrid` / `PLANNER=llm`, off by default. Remaining misses (a figure stranded in a split table row) are a **chunking** lever, not retrieval.
+- **Measured: hybrid (BM25+vector, RRF) + query decomposition lift retrieval 0.63 → 0.72 and answer 0.78 → 0.82** (A/B'd on `/eval`), grounding cross-document cases (e.g. *Microsoft vs JPMorgan net income*) that were 0/6. The two are **complementary**: hybrid *alone* is a wash, but it makes the buried figure retrievable — which is exactly what then lets decomposition ground the comparison. Fusing by **rank** (RRF) took one measured tuning pass: plain RRF let the noisier BM25 list demote two vector-strong cases, so vector is weighted **1.2×** in the fusion — a rank probe showed that recovers one (q017) while preserving the BM25 *recall* rescues the cross-doc cases depend on (a vector-floor was tried and rejected — it crowded those rescues out). Behind `RETRIEVER=hybrid` / `PLANNER=llm`, off by default. The remaining misses (a figure stranded in a split table row) are a **chunking** lever, not retrieval.
+- **That chunking lever, measured: contextual retrieval + a cross-encoder reranker lift retrieval 0.72 → 0.85 and answer 0.82 → 0.87** — the largest single jump. Bare table rows ("Total revenue 242,290") name neither their company nor their statement, so both retrievers miss them (BM25 ranked a *different* filing #1 for "Costco total revenue"). Prepending a compact `company — year — section` header **to the embedding + BM25 index only** restores recall (the gold's vector rank went 286 → 6); a Jina cross-encoder then reranks a wide candidate set down to the fed top-20, fixing the *rank* that the prefix's within-document homogenization crowded. The decisive detail: the header is kept **out** of the text the reranker and generator read — they see the raw window. (Prefix-in-the-text was a wash; reranking *that* was a wash; only the **separation** — embed/BM25 see context, rerank/generate see raw — wins, +0.125 retrieval.) Each layer is A/B'd on `/eval`; behind `RERANKER=jina`, off by default.
 - **Live eval dashboard.** Every `EVAL_LOG=1` run is recorded to Postgres and shown at [`/eval`](https://ragx-rosy.vercel.app/eval): run history, a per-case × per-config grid (cell = retrieval, glyph = answer), and an auto-computed delta vs the previous run — which cases a change *solved* vs *regressed*. It's how a model-fixable failure is told apart from one that needs an architecture change. (A faithful, fast generator matters here: a model that knows a famous company's numbers from training can pass an answer with *zero* retrieval, so the dashboard reads retrieval as the honest metric.)
 
 ### How we tuned the pipeline (6-case progression)

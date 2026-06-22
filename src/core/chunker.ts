@@ -1,3 +1,15 @@
+import type { Chunk } from "./types";
+
+// The text actually EMBEDDED and BM25-INDEXED: the contextual header (company/year/
+// section) prepended to the raw window. Stored apart from chunk.text (the raw window)
+// so retrieval gets the entity/section anchor while the reranker, generator, and
+// citation see clean text. Ingest (embedding) and the BM25 index MUST agree on this
+// string, so it has exactly one home.
+export function contextualize(chunk: Chunk): string {
+  const h = chunk.metadata.contextHeader;
+  return h ? `${h}\n${chunk.text}` : chunk.text;
+}
+
 // Splits page text into overlapping windows small enough to embed well.
 // Not a seam — pure ingestion logic — but kept here as a testable unit.
 //

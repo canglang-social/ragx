@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PgVectorStore } from "./pgVectorStore";
 import { BM25 } from "./bm25";
+import { contextualize } from "./chunker";
 import type { Chunk, RetrievedChunk } from "./types";
 
 // SEAM 2: VectorStore. Holds vectors, returns the nearest ones for a query.
@@ -82,10 +83,12 @@ export class InMemoryVectorStore implements VectorStore {
       .slice(0, topK);
   }
 
-  // BM25 over chunk text. Index built once (lazily) from the loaded records.
+  // BM25 over the CONTEXTUALIZED text (header + raw window) — same string the vector was
+  // embedded from, so both retrievers index the entity/section anchor. The returned
+  // chunk still carries the raw `text` (for the reranker/generator). Built once, lazily.
   async keywordQuery(query: string, topK: number): Promise<RetrievedChunk[]> {
     await this.load();
-    this.bm25 ??= new BM25(this.records.map((r) => r.chunk.text));
+    this.bm25 ??= new BM25(this.records.map((r) => contextualize(r.chunk)));
     return this.bm25
       .search(query, topK)
       .map(({ doc, score }) => ({ ...this.records[doc].chunk, score }));

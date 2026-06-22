@@ -20,36 +20,51 @@ export interface RagDeps {
 // it; the lexical list rescues true recall misses (q035, absent from vector top-100).
 const CANDIDATES = 100;
 
-// Reciprocal Rank Fusion: combine ranked lists by Σ 1/(k + rank). Rank-based, so it
+// Vector gets slightly more weight than BM25 in the fusion. MEASURED on the eval
+// (see the rank probe in docs/state.local.md): plain RRF demoted two vector-strong
+// Berkshire cases below the noisier BM25 list (q013, q017). A 1.2× vector weight
+// recovers q017 WITHOUT costing the BM25 *recall* rescues — q008/q031, figures the
+// vector buries (rank 83/42) that BM25 surfaces — which are exactly what grounds the
+// cross-document cases. (A vector-floor that pins the vector top-K instead was tried
+// and REJECTED: it crowds out those BM25 rescues. q013 stays lost — it's vector-15
+// but absent from BM25's top-100, so RRF inevitably sinks a single-list chunk; the
+// only fix destroys the gains.) Plain unweighted RRF is RRF_VECTOR_WEIGHT=1.
+const VECTOR_WEIGHT = Number(process.env.RRF_VECTOR_WEIGHT ?? 1.2);
+
+// Reciprocal Rank Fusion: combine ranked lists by Σ wᵢ/(k + rank). Rank-based, so it
 // needs no score normalization across the (incomparable) cosine and BM25 scales —
-// that robustness is exactly why RRF is the default hybrid fuser.
-function rrf(lists: RetrievedChunk[][], topK: number, k = 60): RetrievedChunk[] {
+// that robustness is exactly why RRF is the default hybrid fuser. Optional per-list
+// weights let one retriever count for more (here vector > BM25; see VECTOR_WEIGHT).
+function rrf(lists: RetrievedChunk[][], topK: number, k = 60, weights?: number[]): RetrievedChunk[] {
   const score = new Map<string, number>();
   const byId = new Map<string, RetrievedChunk>();
-  for (const list of lists) {
+  lists.forEach((list, li) => {
+    const w = weights?.[li] ?? 1;
     list.forEach((c, rank) => {
-      score.set(c.id, (score.get(c.id) ?? 0) + 1 / (k + rank + 1));
+      score.set(c.id, (score.get(c.id) ?? 0) + w / (k + rank + 1));
       if (!byId.has(c.id)) byId.set(c.id, c);
     });
-  }
+  });
   return [...byId.values()]
     .map((c) => ({ ...c, score: score.get(c.id)! })) // expose the fused score
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
 }
 
-// Retrieve for ONE query: vector-only, or (hybrid) vector + BM25 fused via RRF.
-async function retrieveOne(query: string, deps: RagDeps): Promise<RetrievedChunk[]> {
-  const { embedder, store, hybrid = false, topK = 5 } = deps;
+// Retrieve the top-`k` for ONE query: vector-only, or (hybrid) vector + BM25 fused via
+// RRF. `k` is the FIRST-STAGE width — large when a reranker will re-score (so a gold the
+// fusion ranks just outside the final top-K is still on the table), else the final top-K.
+async function retrieveOne(query: string, deps: RagDeps, k: number): Promise<RetrievedChunk[]> {
+  const { embedder, store, hybrid = false } = deps;
   const [vector] = await embedder.embed([query], "query");
   if (!hybrid || !store.keywordQuery) {
-    return store.query(vector, topK);
+    return store.query(vector, k);
   }
   const [vectorHits, keywordHits] = await Promise.all([
     store.query(vector, CANDIDATES),
     store.keywordQuery(query, CANDIDATES),
   ]);
-  return rrf([vectorHits, keywordHits], topK);
+  return rrf([vectorHits, keywordHits], k, 60, [VECTOR_WEIGHT, 1]);
 }
 
 export interface RagResult {
@@ -70,7 +85,16 @@ export async function answerQuestion(
     generator,
     reranker = new IdentityReranker(),
     planner = new NoPlanner(),
+    topK = 5,
   } = deps;
+
+  // Two-stage retrieval. When a reranker is active, the FIRST stage fetches a WIDER
+  // candidate set (RERANK_CANDIDATES) — recall is good post-contextualization, so the
+  // gold is usually in the top-100, but within-doc homogenization can crowd it just
+  // past top-K in the fusion; the reranker reads (query, chunk) together and promotes
+  // it. With the identity reranker there's no second stage, so we fetch exactly top-K.
+  const reranking = reranker.name !== "identity";
+  const width = reranking ? Number(process.env.RERANK_CANDIDATES ?? 50) : topK;
 
   // The planner may split the question into per-entity sub-queries (one = the linear
   // path). Each sub-query is retrieved on its own — vector-only, or hybrid (BM25 +
@@ -80,11 +104,11 @@ export async function answerQuestion(
 
   let retrieved: RetrievedChunk[];
   if (subQueries.length <= 1) {
-    retrieved = await retrieveOne(subQueries[0] ?? question, deps);
+    retrieved = await retrieveOne(subQueries[0] ?? question, deps, width);
   } else {
     const best = new Map<string, RetrievedChunk>();
     for (const sq of subQueries) {
-      for (const hit of await retrieveOne(sq, deps)) {
+      for (const hit of await retrieveOne(sq, deps, width)) {
         const prev = best.get(hit.id);
         if (!prev || hit.score > prev.score) best.set(hit.id, hit);
       }
@@ -92,7 +116,9 @@ export async function answerQuestion(
     retrieved = [...best.values()].sort((a, b) => b.score - a.score);
   }
 
-  const ranked = await reranker.rerank(question, retrieved);
+  // Second stage: rerank the wide set, then keep top-K for the generator (and the
+  // hit@K metric). With identity, retrieved is already top-K and this is a no-op slice.
+  const ranked = (await reranker.rerank(question, retrieved)).slice(0, topK);
   const answer = await generator.generate(question, ranked);
   return { answer, retrieved: ranked, subQueries };
 }

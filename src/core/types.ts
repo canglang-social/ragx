@@ -6,6 +6,10 @@ export interface ChunkMetadata {
   company?: string;
   year?: number;
   section?: string;
+  // Contextual prefix (company/year/section) prepended ONLY for embedding + BM25, not
+  // stored in `text`. Keeps retrieval anchored to the entity while the reranker,
+  // generator, and citation see the clean raw window. See chunker.contextualize().
+  contextHeader?: string;
 }
 
 export interface Chunk {
