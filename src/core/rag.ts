@@ -20,18 +20,31 @@ export interface RagDeps {
 // it; the lexical list rescues true recall misses (q035, absent from vector top-100).
 const CANDIDATES = 100;
 
-// Reciprocal Rank Fusion: combine ranked lists by Σ 1/(k + rank). Rank-based, so it
+// Vector gets slightly more weight than BM25 in the fusion. MEASURED on the eval
+// (see the rank probe in docs/state.local.md): plain RRF demoted two vector-strong
+// Berkshire cases below the noisier BM25 list (q013, q017). A 1.2× vector weight
+// recovers q017 WITHOUT costing the BM25 *recall* rescues — q008/q031, figures the
+// vector buries (rank 83/42) that BM25 surfaces — which are exactly what grounds the
+// cross-document cases. (A vector-floor that pins the vector top-K instead was tried
+// and REJECTED: it crowds out those BM25 rescues. q013 stays lost — it's vector-15
+// but absent from BM25's top-100, so RRF inevitably sinks a single-list chunk; the
+// only fix destroys the gains.) Plain unweighted RRF is RRF_VECTOR_WEIGHT=1.
+const VECTOR_WEIGHT = Number(process.env.RRF_VECTOR_WEIGHT ?? 1.2);
+
+// Reciprocal Rank Fusion: combine ranked lists by Σ wᵢ/(k + rank). Rank-based, so it
 // needs no score normalization across the (incomparable) cosine and BM25 scales —
-// that robustness is exactly why RRF is the default hybrid fuser.
-function rrf(lists: RetrievedChunk[][], topK: number, k = 60): RetrievedChunk[] {
+// that robustness is exactly why RRF is the default hybrid fuser. Optional per-list
+// weights let one retriever count for more (here vector > BM25; see VECTOR_WEIGHT).
+function rrf(lists: RetrievedChunk[][], topK: number, k = 60, weights?: number[]): RetrievedChunk[] {
   const score = new Map<string, number>();
   const byId = new Map<string, RetrievedChunk>();
-  for (const list of lists) {
+  lists.forEach((list, li) => {
+    const w = weights?.[li] ?? 1;
     list.forEach((c, rank) => {
-      score.set(c.id, (score.get(c.id) ?? 0) + 1 / (k + rank + 1));
+      score.set(c.id, (score.get(c.id) ?? 0) + w / (k + rank + 1));
       if (!byId.has(c.id)) byId.set(c.id, c);
     });
-  }
+  });
   return [...byId.values()]
     .map((c) => ({ ...c, score: score.get(c.id)! })) // expose the fused score
     .sort((a, b) => b.score - a.score)
@@ -49,7 +62,7 @@ async function retrieveOne(query: string, deps: RagDeps): Promise<RetrievedChunk
     store.query(vector, CANDIDATES),
     store.keywordQuery(query, CANDIDATES),
   ]);
-  return rrf([vectorHits, keywordHits], topK);
+  return rrf([vectorHits, keywordHits], topK, 60, [VECTOR_WEIGHT, 1]);
 }
 
 export interface RagResult {
