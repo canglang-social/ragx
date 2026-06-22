@@ -62,9 +62,11 @@ seams are all env-switched), so the script names stay few while any config is re
 | --- | --- | --- |
 | embedder | `EMBEDDER` · `EMBED_MODEL` · `EMBED_BASE_URL` | `ollama` (`nomic-embed-text`, `qwen3-embedding:0.6b`) · `openai` (Jina, etc.) |
 | generator | `GENERATOR` · `GEN_MODEL` · `GEN_BASE_URL` | `ollama` (`llama3`) · `openai` (DeepSeek, Groq, …) |
-| store | `VECTOR_STORE` | unset = in-memory · `pg` = pgvector (the live index) |
+| store | `VECTOR_STORE` · `PG_TABLE` | unset = in-memory · `pg` = pgvector (the live index); `PG_TABLE` selects the table — a rebuilt index lands in a new table for a zero-downtime cutover |
+| retrieval | `RETRIEVER` · `RRF_VECTOR_WEIGHT` | unset = vector-only · `hybrid` = BM25 + vector fused by Reciprocal Rank Fusion (vector weighted `1.2`× by default — tuned) |
+| query planner | `PLANNER` | unset = single query · `llm` = decompose a multi-entity question into per-entity sub-queries, retrieve each, merge (the cross-document fix) |
+| reranker | `RERANKER` · `RERANK_CANDIDATES` · `RERANK_TOP_N` | `jina` = cross-encoder reranks a wide candidate set (`RERANK_CANDIDATES`, default 50) down to `RERANK_TOP_N` — **the v2 win** · `lexical` (shelved negative) |
 | chunking | `CHUNK_CHARS` | default 350 (embedder-dependent — see embedder-comparison.md) |
-| reranker | `RERANKER` | `jina` · `lexical` (both shelved as measured negatives) |
 | eval subset | `EVAL_ONLY` · `EVAL_FILTER` | e.g. `q038,q039` — don't re-run stable cases |
 | eval logging | `EVAL_LOG` · `EVAL_NOTE` · `EVAL_LABEL` | `EVAL_LOG=1` records the run to `/eval` |
 
