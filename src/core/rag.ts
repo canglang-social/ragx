@@ -51,18 +51,20 @@ function rrf(lists: RetrievedChunk[][], topK: number, k = 60, weights?: number[]
     .slice(0, topK);
 }
 
-// Retrieve for ONE query: vector-only, or (hybrid) vector + BM25 fused via RRF.
-async function retrieveOne(query: string, deps: RagDeps): Promise<RetrievedChunk[]> {
-  const { embedder, store, hybrid = false, topK = 5 } = deps;
+// Retrieve the top-`k` for ONE query: vector-only, or (hybrid) vector + BM25 fused via
+// RRF. `k` is the FIRST-STAGE width — large when a reranker will re-score (so a gold the
+// fusion ranks just outside the final top-K is still on the table), else the final top-K.
+async function retrieveOne(query: string, deps: RagDeps, k: number): Promise<RetrievedChunk[]> {
+  const { embedder, store, hybrid = false } = deps;
   const [vector] = await embedder.embed([query], "query");
   if (!hybrid || !store.keywordQuery) {
-    return store.query(vector, topK);
+    return store.query(vector, k);
   }
   const [vectorHits, keywordHits] = await Promise.all([
     store.query(vector, CANDIDATES),
     store.keywordQuery(query, CANDIDATES),
   ]);
-  return rrf([vectorHits, keywordHits], topK, 60, [VECTOR_WEIGHT, 1]);
+  return rrf([vectorHits, keywordHits], k, 60, [VECTOR_WEIGHT, 1]);
 }
 
 export interface RagResult {
@@ -83,7 +85,16 @@ export async function answerQuestion(
     generator,
     reranker = new IdentityReranker(),
     planner = new NoPlanner(),
+    topK = 5,
   } = deps;
+
+  // Two-stage retrieval. When a reranker is active, the FIRST stage fetches a WIDER
+  // candidate set (RERANK_CANDIDATES) — recall is good post-contextualization, so the
+  // gold is usually in the top-100, but within-doc homogenization can crowd it just
+  // past top-K in the fusion; the reranker reads (query, chunk) together and promotes
+  // it. With the identity reranker there's no second stage, so we fetch exactly top-K.
+  const reranking = reranker.name !== "identity";
+  const width = reranking ? Number(process.env.RERANK_CANDIDATES ?? 50) : topK;
 
   // The planner may split the question into per-entity sub-queries (one = the linear
   // path). Each sub-query is retrieved on its own — vector-only, or hybrid (BM25 +
@@ -93,11 +104,11 @@ export async function answerQuestion(
 
   let retrieved: RetrievedChunk[];
   if (subQueries.length <= 1) {
-    retrieved = await retrieveOne(subQueries[0] ?? question, deps);
+    retrieved = await retrieveOne(subQueries[0] ?? question, deps, width);
   } else {
     const best = new Map<string, RetrievedChunk>();
     for (const sq of subQueries) {
-      for (const hit of await retrieveOne(sq, deps)) {
+      for (const hit of await retrieveOne(sq, deps, width)) {
         const prev = best.get(hit.id);
         if (!prev || hit.score > prev.score) best.set(hit.id, hit);
       }
@@ -105,7 +116,9 @@ export async function answerQuestion(
     retrieved = [...best.values()].sort((a, b) => b.score - a.score);
   }
 
-  const ranked = await reranker.rerank(question, retrieved);
+  // Second stage: rerank the wide set, then keep top-K for the generator (and the
+  // hit@K metric). With identity, retrieved is already top-K and this is a no-op slice.
+  const ranked = (await reranker.rerank(question, retrieved)).slice(0, topK);
   const answer = await generator.generate(question, ranked);
   return { answer, retrieved: ranked, subQueries };
 }
