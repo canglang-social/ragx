@@ -2,7 +2,7 @@
 
 A Retrieval-Augmented Generation (RAG) system that answers questions about **financial filings** with cited, verifiable answers — and **measures its own quality** with an eval set.
 
-**▶ Live demo: https://ragx-rosy.vercel.app/** &nbsp;·&nbsp; Eval (20-case demo): **retrieval 0.94 · answer 1.00**, with proven no-hallucination on out-of-corpus questions (a harder 45-case / 4-filing stress test is below). &nbsp;·&nbsp; **[Live eval dashboard →](https://ragx-rosy.vercel.app/eval)**
+**▶ Live demo: https://ragx-rosy.vercel.app/** &nbsp;·&nbsp; Cross-document Q&A over **five filings** (Berkshire · JPMorgan · Microsoft · Costco + a synthetic fixture), with proven no-hallucination on out-of-corpus questions. The deployed **v2 stack** — hybrid retrieval + query decomposition + a cross-encoder reranker — scores **retrieval 0.80 · answer 0.91** on a 45-case stress test, up from a 0.63 / 0.78 single-vector baseline. &nbsp;·&nbsp; **[Live eval dashboard →](https://ragx-rosy.vercel.app/eval)**
 
 ## Why this project is built the way it is
 
@@ -37,17 +37,21 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap. Also:
 
 ## Eval results
 
-The **deployed demo's** eval: **20 cases** over a synthetic fixture + a real
-152-page Berkshire Hathaway 2023 filing — 17 grounded (single-fact, multi-fact,
-free-form) + 3 _absent_ (answer is in no doc; the system must refuse, not invent).
-Numeric/unit-tolerant matching. (A larger **45-case, four-filing stress test** —
-which is what surfaced the cross-document limit and the v2 decision — is described
-in the bullets below and browsable at [`/eval`](https://ragx-rosy.vercel.app/eval).)
+The **deployed** eval: **45 cases** over five filings (a synthetic fixture +
+Berkshire / JPMorgan / Microsoft / Costco) — grounded single-fact, multi-fact, and
+**cross-document comparison** cases, plus _absent_ cases (the answer is in no doc; the
+system must refuse, not invent). Numeric/unit-tolerant matching. Two metrics, kept
+separate so a failure points at retrieval vs generation.
 
-| Stack                                                                      | Retrieval hit@20 | Answer accuracy  |
-| -------------------------------------------------------------------------- | ---------------- | ---------------- |
-| **Deployed** — Jina `jina-embeddings-v3` + DeepSeek `deepseek-chat` + pgvector | **0.94** (16/17) | **1.00** (20/20) |
-| Local dev — `nomic-embed-text` + `llama3`, in-memory                          | 0.82 (14/17)     | 0.85 (17/20)     |
+| Stack (45-case eval · Jina `jina-embeddings-v3` + DeepSeek + pgvector) | Retrieval | Answer |
+| --------------------------------------------------------------------- | --------- | ------ |
+| **Deployed v2** — hybrid (BM25+vector, RRF) + query decomposition + Jina reranker | **0.80** (32/40) | **0.91** (41/45) |
+| v1 baseline — single query vector, same models                                    | 0.63 (25/40)     | 0.78 (35/45)     |
+
+In-memory the lexical half is Okapi BM25 instead of Postgres FTS and retrieval reaches
+**0.85** (browsable at [`/eval`](https://ragx-rosy.vercel.app/eval)). The earlier v1
+demo — a narrower 20-case, Berkshire-only set — scored 0.94 / 1.00; v2 trades that for
+**breadth**: five filings and cross-document Q&A, honestly measured on harder cases.
 
 Reproduce with two presets — `pnpm ingest:local && pnpm eval:local` (Ollama,
 in-memory — offline) or `pnpm ingest:deployed && pnpm eval:deployed` (Jina + DeepSeek
