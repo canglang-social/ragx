@@ -4,6 +4,14 @@ import path from "node:path";
 import { answerQuestion, defaultDeps } from "../src/core/rag";
 import { logRun, type EvalCaseResult } from "../src/core/evalLog";
 
+// A flaky hosted API can reject a socket LATE — after the per-case retry already moved
+// on — which would otherwise crash the whole run as an unhandled rejection (it killed an
+// overnight run on a dropped proxy socket). The per-case loop already records such cases
+// as errored; swallow the late straggler (logged, not silent) so the run still finishes.
+process.on("unhandledRejection", (reason) => {
+  console.error(`[ignored late rejection] ${(reason as Error)?.message ?? reason}`);
+});
+
 // The executable spec. Reports TWO numbers, deliberately separated so a failure
 // points at its cause: retrieval hit@k measures the retriever; answer accuracy
 // measures the generator GIVEN good retrieval.

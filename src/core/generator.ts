@@ -8,6 +8,21 @@ export interface Generator {
   generate(question: string, context: RetrievedChunk[]): Promise<Answer>;
 }
 
+// Grounded system prompt, shared by the real generators so they can't drift. The
+// comparison clause exists on a measured signal: without it the model retrieved both
+// figures for a cross-document question ("which had higher net income, A or B?") but
+// anchored on the top passage and named the WRONG entity — it never compared the
+// numbers. Naming each figure and comparing before concluding fixes that.
+const GROUNDED_SYSTEM =
+  'You answer questions about financial filings using ONLY the provided context passages. ' +
+  'If the answer is not in the context, reply exactly "I don\'t know." ' +
+  'For a direct lookup, quote the exact figure in one sentence. ' +
+  'For a question that COMPARES or RANKS entities (which is higher/larger/highest, how much more): ' +
+  'first write each entity with its figure from the context (normalized to the same unit), ' +
+  'then on a new line compare those numbers explicitly (e.g. "72.4 > 49.6"), ' +
+  'then state the conclusion — the entity with the LARGEST number wins. ' +
+  'Do not assume the first passage is the answer; rely on the numeric comparison you wrote.';
+
 function dedupeCitations(context: RetrievedChunk[]): Citation[] {
   const seen = new Set<string>();
   const out: Citation[] = [];
@@ -60,10 +75,7 @@ export class OllamaGenerator implements Generator {
           `[${i + 1}] (${c.metadata.sourceDoc} p${c.metadata.page})\n${c.text}`,
       )
       .join('\n\n');
-    const system =
-      'You answer questions about financial filings using ONLY the provided context passages. ' +
-      'Quote the exact figure or fact. If the answer is not in the context, reply exactly "I don\'t know." ' +
-      'Be concise: one sentence, no preamble, no commentary.';
+    const system = GROUNDED_SYSTEM;
     const user = `Context:\n${passages}\n\nQuestion: ${question}`;
 
     const res = await fetch(`${this.host}/api/chat`, {
@@ -113,10 +125,7 @@ export class OpenAIGenerator implements Generator {
           `[${i + 1}] (${c.metadata.sourceDoc} p${c.metadata.page})\n${c.text}`,
       )
       .join('\n\n');
-    const system =
-      'You answer questions about financial filings using ONLY the provided context passages. ' +
-      'Quote the exact figure or fact. If the answer is not in the context, reply exactly "I don\'t know." ' +
-      'Be concise: one sentence, no preamble, no commentary.';
+    const system = GROUNDED_SYSTEM;
     const user = `Context:\n${passages}\n\nQuestion: ${question}`;
 
     const body = JSON.stringify({
