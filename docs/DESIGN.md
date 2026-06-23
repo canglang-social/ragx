@@ -32,7 +32,7 @@ interface Reranker   { name; rerank(question, chunks): Promise<RetrievedChunk[]>
 `eval/questions.sample.json` defines expected behavior. Two metrics, reported by `npm run eval`:
 
 - **Retrieval hit@k**: did the gold chunk(s) reach the top-k — matched by `sourceDoc` + a distinctive `gold_chunk_contains` substring (and `source_page` when that substring recurs across pages)? Cross-document cases list multiple `gold_chunks` and require **all** of them retrieved (a comparison isn't grounded if only one figure was found). (Measures the retriever.)
-- **Answer accuracy**: does the generated answer match `expected_answer` (numeric/unit-tolerant for `answer_type:"numerical"`; a refusal for `absent` cases)? (Measures the generator, given good retrieval.)
+- **Answer accuracy**: does the generated answer match `expected_answer` (numeric/unit-tolerant for `answer_type:"numerical"`; a refusal for `absent` cases; free-form graded by an **LLM judge** when `EVAL_JUDGE=llm`, else substring — a substring match false-passed a comparison answer that named the right entity as the *loser*, so the judge checks the conclusion, not mere presence)? (Measures the generator, given good retrieval.)
 
 Separating the two metrics is deliberate: it tells you *where* a failure is (retrieval vs generation), which is what you tune.
 

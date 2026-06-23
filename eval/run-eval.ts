@@ -94,7 +94,33 @@ function numbersMatch(gold: Amount, got: Amount, relTol = 0.01): boolean {
   return scales.some((k) => Math.abs(got.value * k - gold.value) <= gold.value * relTol);
 }
 
-function answerMatches(c: EvalCase, answerText: string): boolean {
+// LLM judge for FREE-FORM answers (E14). Substring matching can't tell a correct
+// conclusion from a wrong one that happens to name the expected entity — a comparison
+// that wrongly concludes "JPMorgan had higher net income (than Microsoft)" still contains
+// "Microsoft", so `includes` falsely passes it. The judge reads the question + expected +
+// answer and decides if the CONCLUSION matches. Opt-in (EVAL_JUDGE=llm) so the offline /
+// mock eval stays deterministic; reuses the generator's provider unless JUDGE_* overrides.
+async function llmJudge(question: string, expected: string, answer: string): Promise<boolean> {
+  const model = process.env.JUDGE_MODEL ?? process.env.GEN_MODEL ?? "gpt-4o-mini";
+  const baseUrl = process.env.JUDGE_BASE_URL ?? process.env.GEN_BASE_URL ?? "https://api.openai.com/v1";
+  const apiKey = process.env.JUDGE_API_KEY ?? process.env.GEN_API_KEY ?? "";
+  const system =
+    "You grade a model's answer to a question about financial filings against the expected answer. " +
+    "Reply YES only if the model answer reaches the SAME conclusion as the expected answer; reply NO if it is " +
+    "wrong, contradictory, or concludes a different entity or value (e.g. names the wrong company as 'higher'). " +
+    "The answer may include extra reasoning — judge only its final conclusion. Reply with ONLY 'YES' or 'NO'.";
+  const user = `Question: ${question}\nExpected answer: ${expected}\nModel answer: ${answer}`;
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, temperature: 0, messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
+  });
+  if (!res.ok) throw new Error(`judge failed: ${res.status}`);
+  const json = (await res.json()) as { choices: { message: { content: string } }[] };
+  return /\byes\b/i.test(json.choices[0]?.message?.content ?? "");
+}
+
+async function answerMatches(c: EvalCase, answerText: string): Promise<boolean> {
   // "absent": the fact isn't in the corpus, so a correct answer DECLINES rather
   // than inventing one. This is the no-hallucination test.
   if (c.answer_type === "absent") {
@@ -105,6 +131,15 @@ function answerMatches(c: EvalCase, answerText: string): boolean {
   if (c.answer_type === "numerical") {
     const gold = extractAmounts(c.expected_answer)[0];
     if (gold) return extractAmounts(answerText).some((a) => numbersMatch(gold, a));
+  }
+  // Free-form: prefer the LLM judge when enabled (it catches wrong-but-keyword-present
+  // conclusions), else fall back to the substring check.
+  if (process.env.EVAL_JUDGE === "llm" && (process.env.JUDGE_API_KEY || process.env.GEN_API_KEY)) {
+    try {
+      return await llmJudge(c.question, c.expected_answer, answerText);
+    } catch {
+      /* judge unreachable — fall back to substring */
+    }
   }
   return answerText.toLowerCase().includes(c.expected_answer.toLowerCase());
 }
@@ -176,7 +211,7 @@ async function main(): Promise<void> {
             r.text.toLowerCase().includes(g.contains.toLowerCase()),
         ),
       );
-    const answerOk = answerMatches(c, answer.text);
+    const answerOk = await answerMatches(c, answer.text);
 
     if (grounded) {
       retrievalTotal++;
