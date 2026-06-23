@@ -303,7 +303,7 @@
     "answer_type": "numerical",
     "source_doc": "costco-2023.pdf",
     "source_page": null,
-    "gold_chunk_contains": "237.7 billion"
+    "gold_chunk_contains": "237,710"
   },
   {
     "id": "q035",
