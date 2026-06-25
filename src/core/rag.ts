@@ -136,12 +136,15 @@ export function defaultDeps(): RagDeps {
       : process.env.GENERATOR === 'openai'
         ? new OpenAIGenerator()
         : new MockGenerator();
-  // Reranker defaults to identity (passthrough). A lexical reranker exists behind
-  // RERANKER=lexical, but A/B showed it REGRESSES vs feeding the wide topK at 20
-  // (it truncates out gold chunks; keyword overlap isn't discriminative when a
-  // phrase repeats across subsidiary tables). Kept as a documented negative result.
+  // Reranker defaults to identity (passthrough). RERANKER=crossencoder selects the
+  // hosted cross-encoder — a vendor-NEUTRAL OpenAI-compatible /rerank client whose
+  // provider + model are set by RERANK_BASE_URL / RERANK_MODEL (Jina, SiliconFlow's
+  // Qwen3-Reranker, Cohere, …), exactly like EMBEDDER=openai / GENERATOR=openai. (`jina`
+  // is kept as a backward-compat alias — it was the original, vendor-specific value.)
+  // RERANKER=lexical is a no-model blend kept as a documented NEGATIVE result (it
+  // regresses vs feeding the wide topK at 20 — truncates out gold chunks).
   const reranker: Reranker =
-    process.env.RERANKER === 'jina'
+    process.env.RERANKER === 'crossencoder' || process.env.RERANKER === 'jina'
       ? new CrossEncoderReranker()
       : process.env.RERANKER === 'lexical'
         ? new LexicalReranker()
