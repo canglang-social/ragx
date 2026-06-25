@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { extractText, getDocumentProxy } from "unpdf";
 import { makeEmbedder } from "../src/core/embedder";
 import { makeStore } from "../src/core/vectorStore";
-import { splitText, contextualize } from "../src/core/chunker";
+import { splitText, isStatementPage, contextualize } from "../src/core/chunker";
+import { describeRows } from "../src/core/describe";
 import type { Chunk } from "../src/core/types";
 
 const PDF_DIR = "data/pdfs";
@@ -47,32 +48,68 @@ function contextHeader(company: string | undefined, year: number | undefined, pa
 // windows small enough to embed well. Each window is a chunk carrying its page —
 // the chunk + metadata shape is the contract: citations and eval scoring both
 // depend on {sourceDoc, page}. Chunking stays WITHIN a page so citations are exact.
+// Run `fn` over items with at most `concurrency` in flight — fast describe pass without
+// hammering the LLM provider's rate limit.
+async function runPool<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) await fn(items[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+}
+
 async function loadPdfs(dir: string): Promise<Chunk[]> {
   const files = (await readdir(dir)).filter((f) => f.toLowerCase().endsWith(".pdf"));
   const chunks: Chunk[] = [];
+  const describeTasks: { pageChunks: Chunk[]; company?: string; year?: number; ctx: string }[] = [];
   for (const file of files) {
     const buffer = await readFile(join(dir, file));
     const pdf = await getDocumentProxy(new Uint8Array(buffer));
     const { text } = await extractText(pdf, { mergePages: false });
     const { company, year } = parseFilename(file);
-    text.forEach((pageText, i) => {
+    for (let i = 0; i < text.length; i++) {
       const page = i + 1; // unpdf pages are 0-indexed; filings cite from 1
-      const clean = deNoise(pageText);
+      const clean = deNoise(text[i]);
       const ctx = contextHeader(company, year, clean);
-      splitText(clean, {
+      // ALL pages use the same overlapping windows — row-splitting statement pages was
+      // measured to REGRESS (it disrupts cases the 350-char window already handled). The
+      // table-aware lever is instead Family 3 below: on a statement page we leave the
+      // window alone but replace its EMBEDDED text with an LLM description.
+      const statement = isStatementPage(clean);
+      const windows = splitText(clean, {
         maxChars: process.env.CHUNK_CHARS ? Number(process.env.CHUNK_CHARS) : undefined,
         overlapChars: process.env.CHUNK_OVERLAP ? Number(process.env.CHUNK_OVERLAP) : undefined,
-      }).forEach((win, w) => {
-        chunks.push({
-          id: `${file}#p${page}#${w}`,
-          // RAW window — what the reranker, generator, and citation see (and what eval
-          // matches gold against). The contextual prefix lives in metadata and is folded
-          // back in ONLY for embedding + BM25 via contextualize().
-          text: win,
-          metadata: { sourceDoc: file, page, company, year, contextHeader: ctx || undefined },
-        });
       });
+      // RAW window in `text` — what the reranker fallback, generator, citation, and eval
+      // gold see. The contextual prefix lives in metadata, folded in only for retrieval.
+      const pageChunks: Chunk[] = windows.map((win, w) => ({
+        id: `${file}#p${page}#${w}`,
+        text: win,
+        metadata: { sourceDoc: file, page, company, year, contextHeader: ctx || undefined },
+      }));
+      // Family 3 (DESCRIBE=1): queue statement pages for description (run concurrently
+      // below, not inline — the per-page LLM calls dominate ingest time otherwise).
+      if (statement && process.env.DESCRIBE === "1") {
+        describeTasks.push({ pageChunks, company, year, ctx });
+      }
+      chunks.push(...pageChunks);
+    }
+  }
+
+  // Concurrent describe pass: replace each statement row's embedded text with an LLM
+  // sentence (retrieval embeds prose, not number-soup; `text` stays raw). Bounded
+  // concurrency so we go fast without tripping the provider's rate limit. Fails safe —
+  // a null description just leaves the chunk on contextHeader+text.
+  if (describeTasks.length) {
+    let done = 0;
+    await runPool(describeTasks, 8, async (t) => {
+      const descs = await describeRows(t.company, t.year, t.ctx, t.pageChunks.map((c) => c.text));
+      t.pageChunks.forEach((c, w) => {
+        if (descs[w]) c.metadata.embedText = descs[w]!;
+      });
+      if (++done % 25 === 0) console.log(`  described ${done}/${describeTasks.length} statement pages…`);
     });
+    console.log(`Described ${describeTasks.length} statement pages.`);
   }
   return chunks;
 }
@@ -86,10 +123,11 @@ async function main(): Promise<void> {
   // DRY_RUN=1: print what gets embedded (contextualized) vs what gets stored (raw) for a
   // few chunks, then stop before embedding — eyeball chunking without a ~15-min re-ingest.
   if (process.env.DRY_RUN) {
-    for (const c of chunks.slice(0, 4)) {
-      console.log(`\n[${c.id}]\n  embed→ ${contextualize(c).slice(0, 160)}\n  text→  ${c.text.slice(0, 160)}`);
+    const sample = chunks.filter((c) => c.id.startsWith("jpmorgan-2023.pdf#p3#") || c.id.startsWith("costco-2023.pdf#p41#")).slice(0, 10);
+    for (const c of sample) {
+      console.log(`[${c.id}] ${contextualize(c).slice(0, 130)}`);
     }
-    console.log(`\n(DRY_RUN) built ${chunks.length} chunks; skipping embed/store.`);
+    console.log(`\n(DRY_RUN) built ${chunks.length} chunks total; skipping embed/store.`);
     return;
   }
 

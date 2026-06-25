@@ -96,29 +96,32 @@ export async function answerQuestion(
   const reranking = reranker.name !== "identity";
   const width = reranking ? Number(process.env.RERANK_CANDIDATES ?? 50) : topK;
 
-  // The planner may split the question into per-entity sub-queries (one = the linear
-  // path). Each sub-query is retrieved on its own — vector-only, or hybrid (BM25 +
-  // vector fused by RRF) when deps.hybrid — then MERGED by chunk id, so a
-  // cross-document comparison sees each entity's chunks.
+  // The planner may split the question into per-entity sub-queries (length 1 = the linear
+  // path). Each sub-query is retrieved on its own — vector-only, or hybrid (BM25 + vector
+  // fused by RRF) when deps.hybrid.
   const subQueries = await planner.plan(question);
 
-  let retrieved: RetrievedChunk[];
+  let ranked: RetrievedChunk[];
   if (subQueries.length <= 1) {
-    retrieved = await retrieveOne(subQueries[0] ?? question, deps, width);
+    // Linear path: retrieve wide, rerank against the question, keep top-K (identity = no-op).
+    const retrieved = await retrieveOne(subQueries[0] ?? question, deps, width);
+    ranked = (await reranker.rerank(question, retrieved)).slice(0, topK);
   } else {
+    // Cross-document path: rerank EACH sub-query against ITS OWN sub-query and keep a
+    // per-entity share, THEN merge — so every entity's figure survives. (Reranking the
+    // merged set against the combined "A vs B" question demoted one entity below the
+    // other's chunks, so a comparison lost a figure — measured on the qwen8b stack.)
+    const perQuery = Math.max(1, Math.ceil(topK / subQueries.length));
     const best = new Map<string, RetrievedChunk>();
     for (const sq of subQueries) {
-      for (const hit of await retrieveOne(sq, deps, width)) {
+      const cands = await retrieveOne(sq, deps, width);
+      for (const hit of (await reranker.rerank(sq, cands)).slice(0, perQuery)) {
         const prev = best.get(hit.id);
         if (!prev || hit.score > prev.score) best.set(hit.id, hit);
       }
     }
-    retrieved = [...best.values()].sort((a, b) => b.score - a.score);
+    ranked = [...best.values()].sort((a, b) => b.score - a.score).slice(0, topK);
   }
-
-  // Second stage: rerank the wide set, then keep top-K for the generator (and the
-  // hit@K metric). With identity, retrieved is already top-K and this is a no-op slice.
-  const ranked = (await reranker.rerank(question, retrieved)).slice(0, topK);
   const answer = await generator.generate(question, ranked);
   return { answer, retrieved: ranked, subQueries };
 }

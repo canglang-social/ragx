@@ -1,3 +1,4 @@
+import { rerankText } from "./chunker";
 import type { RetrievedChunk } from "./types";
 
 // SEAM 4: Reranker. Reorders retrieved chunks for relevance, then keeps the best
@@ -106,7 +107,9 @@ export class CrossEncoderReranker implements Reranker {
         body: JSON.stringify({
           model: this.model,
           query: question,
-          documents: chunks.map((c) => c.text),
+          // Statement rows are scored by their LLM description (rerankText); ordinary
+          // chunks by their raw text. The cross-encoder reads a sentence, not a number-row.
+          documents: chunks.map(rerankText),
           top_n: this.topN,
         }),
       });

@@ -1,13 +1,28 @@
 import type { Chunk } from "./types";
 
-// The text actually EMBEDDED and BM25-INDEXED: the contextual header (company/year/
-// section) prepended to the raw window. Stored apart from chunk.text (the raw window)
-// so retrieval gets the entity/section anchor while the reranker, generator, and
-// citation see clean text. Ingest (embedding) and the BM25 index MUST agree on this
-// string, so it has exactly one home.
+// The text actually EMBEDDED and BM25-INDEXED. Three representations, in priority:
+//   1. metadata.embedText — an LLM description of a statement row (Family 3); the
+//      embedder ranks a sentence far better than a bare number-row.
+//   2. contextHeader + raw window — the entity/section anchor for ordinary chunks.
+//   3. the raw window alone.
+// Stored apart from chunk.text (always the raw window) so the reranker, generator,
+// citation, and eval gold see clean text. Ingest (embedding) and the BM25 index MUST
+// agree on this string, so it has exactly one home.
 export function contextualize(chunk: Chunk): string {
   const h = chunk.metadata.contextHeader;
-  return h ? `${h}\n${chunk.text}` : chunk.text;
+  const base = h ? `${h}\n${chunk.text}` : chunk.text;
+  // A statement description AUGMENTS the base, it doesn't REPLACE it (replacing was
+  // measured to regress: a window the description under-emphasizes lost its old match).
+  // Prepending the description makes a buried figure rankable while the base keeps every
+  // other figure in the window retrievable as before.
+  return chunk.metadata.embedText ? `${chunk.metadata.embedText}\n${base}` : base;
+}
+
+// What the RERANKER scores against — the description (when present) plus the RAW text,
+// never the contextHeader (its homogenizing prefix was measured to blind the
+// cross-encoder, identical across a filing's chunks).
+export function rerankText(chunk: Chunk): string {
+  return chunk.metadata.embedText ? `${chunk.metadata.embedText}\n${chunk.text}` : chunk.text;
 }
 
 // Splits page text into overlapping windows small enough to embed well.
@@ -60,6 +75,20 @@ export function splitText(text: string, opts: ChunkOptions = {}): string[] {
   }
   if (cur) windows.push(cur);
   return windows;
+}
+
+// Detects a financial-statement page (income statement, balance sheet, highlights): a
+// dense grid of "line-item value value value" rows where any one figure is buried in
+// number-soup — "JPMorgan total assets" ranked 75–186 by vector even WITH the contextHeader.
+// MEASURED dead-ends: row-aligned splitting REGRESSED (it disrupts cases the 350-char
+// window already handled), and the reranker won't promote a bare number-row. The lever
+// that WON (Family 3, multi-representation): ingest augments a statement window's EMBEDDED
+// text with an LLM description (see describe.ts). This flag just marks which pages to describe.
+const STMT_KEYWORDS =
+  /\b(CONSOLIDATED|Financial Highlights|BALANCE SHEETS?|STATEMENTS?\s+OF\s+(INCOME|OPERATIONS|CASH\s+FLOWS|EARNINGS|EQUITY|FINANCIAL)|SELECTED\s+(FINANCIAL|STATISTICAL)|THREE[\s-]YEAR\s+SUMMARY)\b/i;
+
+export function isStatementPage(text: string): boolean {
+  return STMT_KEYWORDS.test(text.slice(0, 400));
 }
 
 // Last n chars of s, snapped forward to a word boundary so the overlap doesn't
