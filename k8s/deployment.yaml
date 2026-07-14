@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ragx # ← must match template.metadata.labels EXACTLY
+  template:
+    metadata:
+      labels:
+        app: ragx # ← the label that makes the wiring work
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001 # ← the UID you baked into the Dockerfile
+      containers:
+        - name: ragx
+          image: us-east4-docker.pkg.dev/ragx-502306/ragx/ragx:67029d0 # ← your git SHA
+          ports:
+            - containerPort: 8888
+          envFrom:
+            - configMapRef:
+                name: ragx-config
+            - secretRef:
+                name: ragx-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8888
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8888

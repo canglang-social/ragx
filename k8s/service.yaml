@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ragx-service
+  annotations:
+    cloud.google.com/backend-config: '{"default": "ragx-backendconfig"}'
+    cloud.google.com/neg: '{"ingress": true}'
+spec:
+  type: ClusterIP
+  selector:
+    app: ragx # ← the label match. NOT the Deployment's name.
+  ports:
+    - port: 80 # ← the port the Service listens on
+      targetPort: 8888 # ← the port on the pod it forwards to

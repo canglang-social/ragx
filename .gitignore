@@ -22,3 +22,8 @@ tsconfig.tsbuildinfo
 docs/journals
 docs/logseq
 docs/pages
+
+
+terraform/.terraform/
+terraform/terraform.tfstate*
+*.tfvars
