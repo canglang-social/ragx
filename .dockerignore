@@ -1,14 +1,14 @@
 node_modules/
-.next/
-out/
 .env
 .env.local
 .env.deploy
+.git/
+.next/
 data/index.json
 # Real filings are large and public — fetch via data/pdfs/SOURCES.md, don't commit.
 # The tiny synthetic Meridian fixture stays tracked so the quickstart runs offline.
-data/pdfs/*.pdf
-!data/pdfs/meridian-2023.pdf
+
+
 *.log
 .DS_Store
 next-env.d.ts
