@@ -12,9 +12,9 @@ interface ApiResult {
 }
 
 const EXAMPLES = [
+  "Which had higher net income in 2023, Microsoft or JPMorgan?", // cross-doc comparison (v2)
   "What was Berkshire Hathaway's insurance float at the end of 2023?",
-  "What were Berkshire Hathaway's operating earnings in 2023?",
-  "How much bitcoin does Berkshire Hathaway hold?", // not in the filing → "I don't know"
+  "How much bitcoin does Berkshire Hathaway hold?", // not in the filings → "I don't know"
 ];
 
 export default function Home() {
@@ -67,7 +67,7 @@ export default function Home() {
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Ask about the Berkshire Hathaway 2023 annual report…"
+          placeholder="Ask about the filings — Berkshire, JPMorgan, Microsoft, Costco…"
           style={styles.input}
           aria-label="Question"
         />
@@ -111,7 +111,7 @@ export default function Home() {
       )}
 
       <footer style={styles.footer}>
-        RAG over financial filings · retrieval 0.94 / answer 0.95 on a 20-case eval ·{" "}
+        RAG over financial filings · retrieval 0.97 / answer 0.98 on a 45-case eval ·{" "}
         <a href="/eval" style={styles.evalLink}>
           see the eval dashboard →
         </a>
