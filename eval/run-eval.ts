@@ -1,15 +1,17 @@
-import { readFile } from "node:fs/promises";
-import { execSync } from "node:child_process";
-import path from "node:path";
-import { answerQuestion, defaultDeps } from "../src/core/rag";
-import { logRun, type EvalCaseResult } from "../src/core/evalLog";
+import { readFile } from 'node:fs/promises';
+import { execSync } from 'node:child_process';
+import path from 'node:path';
+import { answerQuestion, defaultDeps } from '../src/core/rag';
+import { logRun, type EvalCaseResult } from '../src/core/evalLog';
 
 // A flaky hosted API can reject a socket LATE — after the per-case retry already moved
 // on — which would otherwise crash the whole run as an unhandled rejection (it killed an
 // overnight run on a dropped proxy socket). The per-case loop already records such cases
 // as errored; swallow the late straggler (logged, not silent) so the run still finishes.
-process.on("unhandledRejection", (reason) => {
-  console.error(`[ignored late rejection] ${(reason as Error)?.message ?? reason}`);
+process.on('unhandledRejection', (reason) => {
+  console.error(
+    `[ignored late rejection] ${(reason as Error)?.message ?? reason}`,
+  );
 });
 
 // The executable spec. Reports TWO numbers, deliberately separated so a failure
@@ -47,7 +49,13 @@ interface EvalCase {
 function goldChunksOf(c: EvalCase): GoldChunk[] {
   if (c.gold_chunks?.length) return c.gold_chunks;
   if (c.source_doc)
-    return [{ source_doc: c.source_doc, source_page: c.source_page, contains: c.gold_chunk_contains }];
+    return [
+      {
+        source_doc: c.source_doc,
+        source_page: c.source_page,
+        contains: c.gold_chunk_contains,
+      },
+    ];
   return [];
 }
 
@@ -74,12 +82,19 @@ interface Amount {
 
 function extractAmounts(text: string): Amount[] {
   const out: Amount[] = [];
-  const re = /(\d+(?:\.\d+)?)\s*(%|trillion|billion|bn|million|mn|mm|thousand)?/gi;
-  for (const m of text.replace(/,/g, "").matchAll(re)) {
+  const re =
+    /(\d+(?:\.\d+)?)\s*(%|trillion|billion|bn|million|mn|mm|thousand)?/gi;
+  for (const m of text.replace(/,/g, '').matchAll(re)) {
     const num = Number.parseFloat(m[1]);
-    const unit = (m[2] ?? "").toLowerCase();
-    if (unit === "%") out.push({ value: num, percent: true, explicitUnit: true });
-    else if (UNIT_SCALE[unit]) out.push({ value: num * UNIT_SCALE[unit], percent: false, explicitUnit: true });
+    const unit = (m[2] ?? '').toLowerCase();
+    if (unit === '%')
+      out.push({ value: num, percent: true, explicitUnit: true });
+    else if (UNIT_SCALE[unit])
+      out.push({
+        value: num * UNIT_SCALE[unit],
+        percent: false,
+        explicitUnit: true,
+      });
     else out.push({ value: num, percent: false, explicitUnit: false });
   }
   return out;
@@ -87,11 +102,16 @@ function extractAmounts(text: string): Amount[] {
 
 function numbersMatch(gold: Amount, got: Amount, relTol = 0.01): boolean {
   if (gold.percent !== got.percent) return false;
-  if (gold.percent) return Math.abs(gold.value - got.value) <= Math.max(0.05, gold.value * relTol);
+  if (gold.percent)
+    return (
+      Math.abs(gold.value - got.value) <= Math.max(0.05, gold.value * relTol)
+    );
   // Money: if the answer carried no unit (e.g. a table cell "$37,350" stated in
   // millions elsewhere on the page), try financial scale steps of 10^3.
   const scales = got.explicitUnit ? [1] : [1, 1e3, 1e6, 1e9];
-  return scales.some((k) => Math.abs(got.value * k - gold.value) <= gold.value * relTol);
+  return scales.some(
+    (k) => Math.abs(got.value * k - gold.value) <= gold.value * relTol,
+  );
 }
 
 // LLM judge for FREE-FORM answers (E14). Substring matching can't tell a correct
@@ -100,41 +120,68 @@ function numbersMatch(gold: Amount, got: Amount, relTol = 0.01): boolean {
 // "Microsoft", so `includes` falsely passes it. The judge reads the question + expected +
 // answer and decides if the CONCLUSION matches. Opt-in (EVAL_JUDGE=llm) so the offline /
 // mock eval stays deterministic; reuses the generator's provider unless JUDGE_* overrides.
-async function llmJudge(question: string, expected: string, answer: string): Promise<boolean> {
-  const model = process.env.JUDGE_MODEL ?? process.env.GEN_MODEL ?? "gpt-4o-mini";
-  const baseUrl = process.env.JUDGE_BASE_URL ?? process.env.GEN_BASE_URL ?? "https://api.openai.com/v1";
-  const apiKey = process.env.JUDGE_API_KEY ?? process.env.GEN_API_KEY ?? "";
+async function llmJudge(
+  question: string,
+  expected: string,
+  answer: string,
+): Promise<boolean> {
+  const model =
+    process.env.JUDGE_MODEL ?? process.env.GEN_MODEL ?? 'gpt-4o-mini';
+  const baseUrl =
+    process.env.JUDGE_BASE_URL ??
+    process.env.GEN_BASE_URL ??
+    'https://api.openai.com/v1';
+  const apiKey = process.env.JUDGE_API_KEY ?? process.env.GEN_API_KEY ?? '';
   const system =
     "You grade a model's answer to a question about financial filings against the expected answer. " +
-    "Reply YES only if the model answer reaches the SAME conclusion as the expected answer; reply NO if it is " +
+    'Reply YES only if the model answer reaches the SAME conclusion as the expected answer; reply NO if it is ' +
     "wrong, contradictory, or concludes a different entity or value (e.g. names the wrong company as 'higher'). " +
     "The answer may include extra reasoning — judge only its final conclusion. Reply with ONLY 'YES' or 'NO'.";
   const user = `Question: ${question}\nExpected answer: ${expected}\nModel answer: ${answer}`;
   const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, temperature: 0, messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+    }),
   });
   if (!res.ok) throw new Error(`judge failed: ${res.status}`);
-  const json = (await res.json()) as { choices: { message: { content: string } }[] };
-  return /\byes\b/i.test(json.choices[0]?.message?.content ?? "");
+  const json = (await res.json()) as {
+    choices: { message: { content: string } }[];
+  };
+  return /\byes\b/i.test(json.choices[0]?.message?.content ?? '');
 }
 
-async function answerMatches(c: EvalCase, answerText: string): Promise<boolean> {
+async function answerMatches(
+  c: EvalCase,
+  answerText: string,
+): Promise<boolean> {
   // "absent": the fact isn't in the corpus, so a correct answer DECLINES rather
   // than inventing one. This is the no-hallucination test.
-  if (c.answer_type === "absent") {
+  if (c.answer_type === 'absent') {
     return /\b(i\s+)?don'?t\s+know\b|not\s+(stated|provided|available|mentioned|specified|disclosed|in\s+the)/i.test(
       answerText,
     );
   }
-  if (c.answer_type === "numerical") {
+  if (c.answer_type === 'numerical') {
     const gold = extractAmounts(c.expected_answer)[0];
-    if (gold) return extractAmounts(answerText).some((a) => numbersMatch(gold, a));
+    if (gold)
+      return extractAmounts(answerText).some((a) => numbersMatch(gold, a));
   }
   // Free-form: prefer the LLM judge when enabled (it catches wrong-but-keyword-present
   // conclusions), else fall back to the substring check.
-  if (process.env.EVAL_JUDGE === "llm" && (process.env.JUDGE_API_KEY || process.env.GEN_API_KEY)) {
+  if (
+    process.env.EVAL_JUDGE === 'llm' &&
+    (process.env.JUDGE_API_KEY || process.env.GEN_API_KEY)
+  ) {
     try {
       return await llmJudge(c.question, c.expected_answer, answerText);
     } catch {
@@ -145,19 +192,27 @@ async function answerMatches(c: EvalCase, answerText: string): Promise<boolean> 
 }
 
 async function main(): Promise<void> {
-  const file = path.join(process.cwd(), "eval", "questions.sample.json");
-  const all: EvalCase[] = JSON.parse(await readFile(file, "utf8"));
+  const file = path.join(process.cwd(), 'eval', 'questions.sample.json');
+  const all: EvalCase[] = JSON.parse(await readFile(file, 'utf8'));
 
   // Subset selection, so a slow/paid API isn't burned re-running stable cases
   // every iteration. EVAL_ONLY=q025,q038 picks exact ids; EVAL_FILTER=q0(3|4) is a
   // regex over ids. Either narrows to e.g. just the cross-doc cases under work.
-  const only = process.env.EVAL_ONLY?.split(",").map((s) => s.trim()).filter(Boolean);
-  const filterRe = process.env.EVAL_FILTER ? new RegExp(process.env.EVAL_FILTER) : null;
+  const only = process.env.EVAL_ONLY?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const filterRe = process.env.EVAL_FILTER
+    ? new RegExp(process.env.EVAL_FILTER)
+    : null;
   const cases = all.filter(
-    (c) => (!only?.length || only.includes(c.id)) && (!filterRe || filterRe.test(c.id)),
+    (c) =>
+      (!only?.length || only.includes(c.id)) &&
+      (!filterRe || filterRe.test(c.id)),
   );
   if (cases.length !== all.length) {
-    console.log(`Subset: ${cases.length}/${all.length} cases (${cases.map((c) => c.id).join(",")})\n`);
+    console.log(
+      `Subset: ${cases.length}/${all.length} cases (${cases.map((c) => c.id).join(',')})\n`,
+    );
   }
 
   const deps = defaultDeps();
@@ -183,8 +238,15 @@ async function main(): Promise<void> {
       } catch (err) {
         if (attempt === 1) {
           errored++;
-          perCase.push({ id: c.id, retrieval: "ERR", answer: false, ms: Date.now() - t0 });
-          console.log(`${c.id}  retrieval=ERR   answer=ERR   ${String(Date.now() - t0).padStart(5)}ms  | ${c.question}  (${(err as Error).message.slice(0, 60)})`);
+          perCase.push({
+            id: c.id,
+            retrieval: 'ERR',
+            answer: false,
+            ms: Date.now() - t0,
+          });
+          console.log(
+            `${c.id}  retrieval=ERR   answer=ERR   ${String(Date.now() - t0).padStart(5)}ms  | ${c.question}  (${(err as Error).message.slice(0, 60)})`,
+          );
         }
       }
     }
@@ -193,7 +255,7 @@ async function main(): Promise<void> {
     const ms = Date.now() - t0;
     ctxSize = Math.max(ctxSize, retrieved.length);
 
-    const grounded = c.answer_type !== "absent";
+    const grounded = c.answer_type !== 'absent';
     const golds = goldChunksOf(c);
     // A grounded case is retrieved iff EVERY required gold chunk is in context.
     // Match on sourceDoc AND page (not page alone): across a multi-filing corpus
@@ -219,26 +281,41 @@ async function main(): Promise<void> {
     }
     if (answerOk) correct++;
 
-    const retrievalCol = grounded ? (retrievalHit ? "PASS" : "FAIL") : "n/a ";
-    perCase.push({ id: c.id, retrieval: grounded ? (retrievalHit ? "PASS" : "FAIL") : "n/a", answer: answerOk, ms });
+    const retrievalCol = grounded ? (retrievalHit ? 'PASS' : 'FAIL') : 'n/a ';
+    perCase.push({
+      id: c.id,
+      retrieval: grounded ? (retrievalHit ? 'PASS' : 'FAIL') : 'n/a',
+      answer: answerOk,
+      ms,
+    });
     console.log(
-      `${c.id}  retrieval=${retrievalCol}  answer=${answerOk ? "PASS" : "FAIL"}  ${String(ms).padStart(5)}ms  | ${c.question}`,
+      `${c.id}  retrieval=${retrievalCol}  answer=${answerOk ? 'PASS' : 'FAIL'}  ${String(ms).padStart(5)}ms  | ${c.question}`,
     );
   }
 
   const n = cases.length;
-  console.log("\n--- Eval summary ---");
-  console.log(`Cases:              ${n}  (${retrievalTotal} grounded, ${n - retrievalTotal} absent)${errored ? `  [⚠ ${errored} errored: excluded from retrieval denom, count as answer misses — re-run for a clean number]` : ""}`);
-  console.log(`Pipeline:           retrieve ${topK} → ${deps.reranker?.name ?? "identity"} → ${deps.generator.name}`);
-  console.log(`Retrieval hit@${ctxSize}:     ${(hits / retrievalTotal).toFixed(2)}  (${hits}/${retrievalTotal})  (gold in generator context, grounded only)`);
-  console.log(`Answer accuracy:    ${(correct / n).toFixed(2)}  (${correct}/${n})`);
+  console.log('\n--- Eval summary ---');
+  console.log(
+    `Cases:              ${n}  (${retrievalTotal} grounded, ${n - retrievalTotal} absent)${errored ? `  [⚠ ${errored} errored: excluded from retrieval denom, count as answer misses — re-run for a clean number]` : ''}`,
+  );
+  console.log(
+    `Pipeline:           retrieve ${topK} → ${deps.reranker?.name ?? 'identity'} → ${deps.generator.name}`,
+  );
+  console.log(
+    `Retrieval hit@${ctxSize}:     ${(hits / retrievalTotal).toFixed(2)}  (${hits}/${retrievalTotal})  (gold in generator context, grounded only)`,
+  );
+  console.log(
+    `Answer accuracy:    ${(correct / n).toFixed(2)}  (${correct}/${n})`,
+  );
 
   // Opt-in (EVAL_LOG=1): persist this run to the eval_runs table so /eval can show
   // the per-case × per-config history. Opt-in so smoke subsets don't pollute it.
   if (process.env.EVAL_LOG) {
-    let gitSha = "unknown";
+    let gitSha = 'unknown';
     try {
-      gitSha = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      gitSha = execSync('git rev-parse --short HEAD', {
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
         .toString()
         .trim();
     } catch {
@@ -248,12 +325,16 @@ async function main(): Promise<void> {
       git_sha: gitSha,
       embedder: deps.embedder.name,
       generator: deps.generator.name,
-      reranker: deps.reranker?.name ?? "identity",
+      reranker: deps.reranker?.name ?? 'identity',
       top_k: topK,
-      chunk_chars: process.env.CHUNK_CHARS ? Number(process.env.CHUNK_CHARS) : null,
+      chunk_chars: process.env.CHUNK_CHARS
+        ? Number(process.env.CHUNK_CHARS)
+        : null,
       n,
       grounded: retrievalTotal,
-      retrieval_hit: retrievalTotal ? Number((hits / retrievalTotal).toFixed(4)) : 0,
+      retrieval_hit: retrievalTotal
+        ? Number((hits / retrievalTotal).toFixed(4))
+        : 0,
       answer_acc: Number((correct / n).toFixed(4)),
       errored,
       per_case: perCase,
@@ -264,6 +345,19 @@ async function main(): Promise<void> {
   }
 
   await deps.store.close?.();
+
+  const minRetrieval = Number(process.env.EVAL_MIN_RETRIEVAL ?? 0);
+  const minAnswerAcc = Number(process.env.EVAL_MIN_ANSWER ?? 0);
+  const retrieval = retrievalTotal ? hits / retrievalTotal : 0;
+  const answerAcc = correct / n;
+
+  if (retrieval < minRetrieval || answerAcc < minAnswerAcc) {
+    console.error(
+      `FAIL: retrieval ${retrieval.toFixed(2)} (min ${minRetrieval}), ` +
+        `answer ${answerAcc.toFixed(2)} (min ${minAnswerAcc})`,
+    );
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
