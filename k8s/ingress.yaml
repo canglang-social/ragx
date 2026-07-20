@@ -19,11 +19,11 @@ kind: Ingress
 metadata:
   name: ragx-ingress
   annotations:
+    kubernetes.io/ingress.class: 'gce' # ← restore; GKE needs this
     kubernetes.io/ingress.global-static-ip-name: ragx-ip # ← the Terraform resource NAME, not the IP
     networking.gke.io/managed-certificates: ragx-cert
     networking.gke.io/v1beta1.FrontendConfig: ragx-frontendconfig
 spec:
-  ingressClassName: gce
   rules:
     - host: ragx.felixhan.dev
       http:
