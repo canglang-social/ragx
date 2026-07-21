@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - 'terraform/**'
       - '**.md'
+  workflow_dispatch: # ← manual "Run workflow" button
 
 permissions:
   contents: read
