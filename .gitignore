@@ -27,3 +27,6 @@ docs/pages
 terraform/.terraform/
 terraform/terraform.tfstate*
 *.tfvars
+
+# Deploy explainers — personal study material, not product docs
+docs/deploy/
