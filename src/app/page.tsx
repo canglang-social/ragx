@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 
 interface Citation {
   sourceDoc: string;
@@ -22,6 +22,68 @@ export default function Home() {
   const [result, setResult] = useState<ApiResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [speech, setSpeech] = useState<"idle" | "loading" | "playing">("idle");
+  const [speechError, setSpeechError] = useState<string | null>(null);
+
+  // Audio is handled imperatively rather than through a JSX <audio> element: playback
+  // has to start in the same click that fetched the clip, which a state-driven `src`
+  // can't guarantee. The blob URL is cached per answer text so replaying a clip is free
+  // — every fetch is a billed ElevenLabs call.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const clipRef = useRef<{ text: string; url: string } | null>(null);
+
+  function stopSpeech(): void {
+    audioRef.current?.pause();
+    if (audioRef.current) audioRef.current.currentTime = 0;
+    setSpeech("idle");
+  }
+
+  function discardClip(): void {
+    stopSpeech();
+    if (clipRef.current) URL.revokeObjectURL(clipRef.current.url);
+    clipRef.current = null;
+    audioRef.current = null;
+    setSpeechError(null);
+  }
+
+  // Revoke the outstanding blob URL when the page unmounts.
+  useEffect(() => discardClip, []);
+
+  async function speak(text: string): Promise<void> {
+    if (speech === "loading") return;
+    if (speech === "playing") {
+      stopSpeech();
+      return;
+    }
+    setSpeechError(null);
+    try {
+      let url = clipRef.current?.text === text ? clipRef.current.url : null;
+      if (!url) {
+        setSpeech("loading");
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `Text-to-speech failed (${res.status})`);
+        }
+        if (clipRef.current) URL.revokeObjectURL(clipRef.current.url);
+        url = URL.createObjectURL(await res.blob());
+        clipRef.current = { text, url };
+        audioRef.current = null;
+      }
+      const audio = audioRef.current ?? new Audio(url);
+      audio.onended = () => setSpeech("idle");
+      audioRef.current = audio;
+      await audio.play();
+      setSpeech("playing");
+    } catch (err) {
+      setSpeech("idle");
+      setSpeechError(err instanceof Error ? err.message : "Could not play the answer.");
+    }
+  }
 
   async function run(q: string): Promise<void> {
     const trimmed = q.trim();
@@ -30,6 +92,7 @@ export default function Home() {
     setLoading(true);
     setResult(null);
     setError(null);
+    discardClip(); // the previous answer's audio no longer matches what's on screen
     try {
       const res = await fetch("/api/query", {
         method: "POST",
@@ -95,6 +158,18 @@ export default function Home() {
       {result && (
         <section style={styles.answer} aria-live="polite">
           <p style={styles.answerText}>{result.answer.text}</p>
+          <div style={styles.listenRow}>
+            <button
+              type="button"
+              onClick={() => void speak(result.answer.text)}
+              disabled={speech === "loading"}
+              style={styles.listenButton}
+              aria-label={speech === "playing" ? "Stop reading the answer" : "Listen to the answer"}
+            >
+              {speech === "loading" ? "◍ Generating…" : speech === "playing" ? "■ Stop" : "▶ Listen"}
+            </button>
+            {speechError && <span style={styles.listenError}>{speechError}</span>}
+          </div>
           {result.answer.citations.length > 0 && (
             <div style={styles.sources}>
               <span style={styles.sourcesLabel}>Sources</span>
@@ -179,6 +254,18 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 12,
   },
   answerText: { margin: 0, fontSize: 17 },
+  listenRow: { display: "flex", alignItems: "center", gap: 10, marginTop: 14 },
+  listenButton: {
+    padding: "6px 12px",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#374151",
+    background: "#fff",
+    border: "1px solid #d1d5db",
+    borderRadius: 999,
+    cursor: "pointer",
+  },
+  listenError: { fontSize: 13, color: "#991b1b" },
   sources: { marginTop: 16, paddingTop: 14, borderTop: "1px solid #e5e7eb" },
   sourcesLabel: { fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#6b7280", letterSpacing: 0.5 },
   sourceList: { margin: "8px 0 0", padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 8 },
