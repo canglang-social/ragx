@@ -23,6 +23,8 @@ pnpm dev       # open http://localhost:3000 and ask a question
 
 By default it runs with **no external dependencies** (mock embedder + in-memory store + mock generator) so the whole pipeline walks end-to-end immediately. Swap in real components per the roadmap.
 
+Optional: set `ELEVENLABS_API_KEY` to enable the answer card's **Listen** button (ElevenLabs TTS, called server-side so the key never reaches the browser). Without it the button reports that TTS is not configured; everything else works. See [docs/elevenlabs.md](docs/elevenlabs.md).
+
 ## Architecture
 
 ```
@@ -33,7 +35,8 @@ Query:      question -> Embedder -> VectorStore.query -> Reranker -> Generator -
 See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap. Also:
 [principles.md](docs/principles.md) (the reasoning rules, tagged hard/convention/project),
 [eval-case-studies.md](docs/eval-case-studies.md) (per-case diagnosis → fix), and
-[embedder-comparison.md](docs/embedder-comparison.md) (eval-driven embedder selection).
+[embedder-comparison.md](docs/embedder-comparison.md) (eval-driven embedder selection), and
+[elevenlabs.md](docs/elevenlabs.md) (the Listen button, and why the Agents Platform's hosted knowledge base isn't used here).
 
 ## Eval results
 
