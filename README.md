@@ -38,6 +38,10 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the full spec and roadmap. Also:
 [embedder-comparison.md](docs/embedder-comparison.md) (eval-driven embedder selection), and
 [elevenlabs.md](docs/elevenlabs.md) (the Listen button, and why the Agents Platform's hosted knowledge base isn't used here).
 
+## Public handoffs
+
+This is a public repository. Cross-repository handoffs may include only sanitized product requirements and outcomes. Never copy private tracker provenance, application state or timing, internal IDs, private repository or file references, or commit IDs from private repositories into this repo. Keep those source details in the private repository that owns them.
+
 ## Eval results
 
 The **deployed** eval: **45 cases** over five filings (a synthetic fixture +
