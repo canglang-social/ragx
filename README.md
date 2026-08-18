@@ -15,13 +15,47 @@ A Retrieval-Augmented Generation (RAG) system that answers questions about **fin
 Requires [pnpm](https://pnpm.io/).
 
 ```bash
-pnpm install
-pnpm ingest    # builds the index from sample data (uses a zero-dependency mock embedder)
-pnpm eval      # prints the quality table
+pnpm install --frozen-lockfile
+pnpm ingest    # builds a local index from the tracked synthetic fixture
+pnpm eval      # prints the quality table using deterministic mock components
 pnpm dev       # open http://localhost:3000 and ask a question
 ```
 
 By default it runs with **no external dependencies** (mock embedder + in-memory store + mock generator) so the whole pipeline walks end-to-end immediately. Swap in real components per the roadmap.
+
+For a fresh Codex workspace, open the repository root: Codex discovers the root
+[`AGENTS.md`](AGENTS.md), which routes it to these commands and the authoritative
+tracked sources. Claude Code uses [`CLAUDE.md`](CLAUDE.md), which routes to the same
+sources. Neither adapter installs a RAGX-specific skill, agent, hook, MCP server,
+plugin, or alternate runtime; invoke the application directly through `pnpm`.
+
+Run `pnpm typecheck` and `pnpm build` before declaring a code change complete.
+
+### Optional paths and explicit limitations
+
+- `pnpm ingest:local && pnpm eval:local` stays local, but it is not the zero-setup
+  default: install and start Ollama, and pull the configured embedding and chat
+  models first.
+- Hosted embedding, generation, planning, reranking, or judging requires the
+  corresponding provider URL, model, and API key. These paths need network and
+  account access and may incur charges; they are not required for the default
+  workflow.
+- `VECTOR_STORE=pg` and `EVAL_LOG=1` require an owner-provided `DATABASE_URL`.
+  Eval logging writes a run to Postgres. `pnpm ingest:deployed` also uses hosted
+  providers and **resets the Postgres table selected by `PG_TABLE`**; never use it
+  as a smoke test or against an unconfirmed database.
+- `DRY_RUN=1 pnpm ingest` stops before embedding or storage, but it prints document
+  excerpts to the terminal. Use it only with synthetic or otherwise approved
+  non-private inputs.
+- ElevenLabs TTS requires `ELEVENLABS_API_KEY`, makes a hosted request, and may
+  incur charges. Without the key, TTS fails closed while the rest of the app works.
+- GitHub deployment, GKE/Kubernetes operations, Terraform, and the deployed eval
+  stack require owner-controlled cloud accounts, credentials, and production data.
+  They are external operations, not prerequisites for local Codex or Claude use.
+
+Never inspect, ingest, print, or publish private documents, corpora, existing index
+contents, credentials, or production data. Use the tracked fixture or temporary
+synthetic inputs and isolated local indexes for routine development and validation.
 
 Optional: set `ELEVENLABS_API_KEY` to enable the answer card's **Listen** button (ElevenLabs TTS, called server-side so the key never reaches the browser). Without it the button reports that TTS is not configured; everything else works. See [docs/elevenlabs.md](docs/elevenlabs.md).
 
